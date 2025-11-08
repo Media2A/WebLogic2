@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            padding: 0;
+        }
+        .sidebar .nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            padding: 1rem 1.5rem;
+            border-left: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-left-color: white;
+        }
+        .sidebar .nav-link i {
+            width: 20px;
+            margin-right: 10px;
+        }
+        .navbar {
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .stat-card {
+            border-radius: 10px;
+            border: none;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            font-size: 24px;
+        }
+        .bg-gradient-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .bg-gradient-success {
+            background: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%);
+        }
+        .bg-gradient-warning {
+            background: linear-gradient(135deg, #f09819 0%, #edde5d 100%);
+        }
+        .bg-gradient-danger {
+            background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+        .sidebar-brand {
+            padding: 1.5rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 px-0 sidebar">
+                <div class="sidebar-brand">
+                    <i class="bi bi-shield-lock me-2"></i>
+                    WebLogic
+                </div>
+                <nav class="nav flex-column mt-3">
+                    <a class="nav-link active" href="/admin">
+                        <i class="bi bi-speedometer2"></i>
+                        Dashboard
+                    </a>
+                    <a class="nav-link" href="/admin/users">
+                        <i class="bi bi-people"></i>
+                        Users
+                    </a>
+                    <a class="nav-link" href="/admin/roles">
+                        <i class="bi bi-person-badge"></i>
+                        Roles
+                    </a>
+                    <a class="nav-link" href="/admin/permissions">
+                        <i class="bi bi-key"></i>
+                        Permissions
+                    </a>
+                    <a class="nav-link" href="/admin/settings">
+                        <i class="bi bi-gear"></i>
+                        Settings
+                    </a>
+                    <hr class="text-white mx-3">
+                    <a class="nav-link" href="/admin/logout">
+                        <i class="bi bi-box-arrow-right"></i>
+                        Logout
+                    </a>
+                </nav>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10">
+                <!-- Top Navbar -->
+                <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top">
+                    <div class="container-fluid">
+                        <span class="navbar-brand mb-0 h1">
+                            <i class="bi bi-speedometer2 me-2"></i>
+                            Dashboard
+                        </span>
+                        <div class="ms-auto d-flex align-items-center">
+                            <span class="me-3">Welcome, <strong>{{user.Username}}</strong></span>
+                            <div class="user-avatar">
+                                {{user.Username.0}}
+                            </div>
+                        </div>
+                    </div>
+                </nav>
+
+                <!-- Dashboard Content -->
+                <div class="container-fluid p-4">
+                    <!-- Stats Row -->
+                    <div class="row mb-4">
+                        <div class="col-md-3 mb-3">
+                            <div class="card stat-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="stat-icon bg-gradient-primary text-white">
+                                            <i class="bi bi-people"></i>
+                                        </div>
+                                        <div class="ms-3">
+                                            <h6 class="text-muted mb-1">Total Users</h6>
+                                            <h3 class="mb-0">1</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3 mb-3">
+                            <div class="card stat-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="stat-icon bg-gradient-success text-white">
+                                            <i class="bi bi-person-badge"></i>
+                                        </div>
+                                        <div class="ms-3">
+                                            <h6 class="text-muted mb-1">Roles</h6>
+                                            <h3 class="mb-0">4</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3 mb-3">
+                            <div class="card stat-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="stat-icon bg-gradient-warning text-white">
+                                            <i class="bi bi-key"></i>
+                                        </div>
+                                        <div class="ms-3">
+                                            <h6 class="text-muted mb-1">Permissions</h6>
+                                            <h3 class="mb-0">17</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3 mb-3">
+                            <div class="card stat-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="stat-icon bg-gradient-danger text-white">
+                                            <i class="bi bi-shield-check"></i>
+                                        </div>
+                                        <div class="ms-3">
+                                            <h6 class="text-muted mb-1">Active Sessions</h6>
+                                            <h3 class="mb-0">1</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Welcome Card -->
+                    <div class="row">
+                        <div class="col-md-12 mb-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h4 class="card-title">
+                                        <i class="bi bi-emoji-smile me-2"></i>
+                                        Welcome to WebLogic Admin Panel
+                                    </h4>
+                                    <p class="card-text">
+                                        You are logged in as <strong>{{user.FullName}}</strong> ({{user.Email}}).
+                                    </p>
+                                    <p class="card-text">
+                                        This administration panel allows you to manage users, roles, and permissions
+                                        across your WebLogic application.
+                                    </p>
+                                    <div class="alert alert-info mt-3" role="alert">
+                                        <i class="bi bi-info-circle me-2"></i>
+                                        <strong>Quick Start:</strong> Use the sidebar to navigate between different
+                                        sections. The dashboard provides an overview of your system's current state.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- System Info -->
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <div class="card">
+                                <div class="card-header bg-light">
+                                    <h5 class="mb-0">
+                                        <i class="bi bi-info-circle me-2"></i>
+                                        System Information
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled mb-0">
+                                        <li class="mb-2">
+                                            <i class="bi bi-check-circle text-success me-2"></i>
+                                            WebLogic Server: Running
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="bi bi-check-circle text-success me-2"></i>
+                                            Authentication: Enabled
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="bi bi-check-circle text-success me-2"></i>
+                                            Database: Connected
+                                        </li>
+                                        <li>
+                                            <i class="bi bi-check-circle text-success me-2"></i>
+                                            Admin Module: v1.0.0
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 mb-4">
+                            <div class="card">
+                                <div class="card-header bg-light">
+                                    <h5 class="mb-0">
+                                        <i class="bi bi-clock-history me-2"></i>
+                                        Recent Activity
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled mb-0">
+                                        <li class="mb-2">
+                                            <small class="text-muted">Just now</small><br>
+                                            Admin user logged in
+                                        </li>
+                                        <li class="mb-2">
+                                            <small class="text-muted">System startup</small><br>
+                                            Authentication system initialized
+                                        </li>
+                                        <li>
+                                            <small class="text-muted">System startup</small><br>
+                                            Default roles and permissions created
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+</body>
+</html>

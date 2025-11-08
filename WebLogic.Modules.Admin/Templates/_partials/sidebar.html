@@ -1,0 +1,33 @@
+<div class="sidebar">
+    <div class="sidebar-brand">
+        <i class="bi bi-shield-lock me-2"></i>
+        WebLogic
+    </div>
+    <nav class="nav flex-column mt-3">
+        <a class="nav-link {{#if isDashboard}}active{{/if}}" href="/admin">
+            <i class="bi bi-speedometer2"></i>
+            Dashboard
+        </a>
+        <a class="nav-link {{#if isUsers}}active{{/if}}" href="/admin/users">
+            <i class="bi bi-people"></i>
+            Users
+        </a>
+        <a class="nav-link {{#if isRoles}}active{{/if}}" href="/admin/roles">
+            <i class="bi bi-person-badge"></i>
+            Roles
+        </a>
+        <a class="nav-link {{#if isPermissions}}active{{/if}}" href="/admin/permissions">
+            <i class="bi bi-key"></i>
+            Permissions
+        </a>
+        <a class="nav-link {{#if isSettings}}active{{/if}}" href="/admin/settings">
+            <i class="bi bi-gear"></i>
+            Settings
+        </a>
+        <hr class="text-white mx-3">
+        <a class="nav-link" href="/admin/logout">
+            <i class="bi bi-box-arrow-right"></i>
+            Logout
+        </a>
+    </nav>
+</div>

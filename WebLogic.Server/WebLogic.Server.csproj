@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\WebLogic.Shared\WebLogic.Shared.csproj" />
+    <ProjectReference Include="..\..\CodeLogic2\src\CodeLogic.csproj" />
+    <ProjectReference Include="..\..\CodeLogic2-Libs\CL.Core\CL.Core.csproj" />
+    <ProjectReference Include="..\..\CodeLogic2-Libs\CL.MySQL2\CL.MySQL2.csproj" />
+    <ProjectReference Include="..\..\CodeLogic2-Libs\CL.NetUtils\CL.NetUtils.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- Copy default theme to data/themes during build -->
+  <Target Name="CopyDefaultTheme" AfterTargets="Build">
+    <PropertyGroup>
+      <DefaultThemeSource>$(MSBuildProjectDirectory)\themes\default</DefaultThemeSource>
+      <DefaultThemeDest>$(OutDir)data\themes\default</DefaultThemeDest>
+    </PropertyGroup>
+    <MakeDir Directories="$(OutDir)data\themes\default" />
+    <ItemGroup>
+      <DefaultThemeFiles Include="$(MSBuildProjectDirectory)\themes\default\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DefaultThemeFiles)" DestinationFolder="$(OutDir)data\themes\default\%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Message Text="Copied default theme to: $(OutDir)data\themes\default" Importance="high" />
+  </Target>
+
+</Project>

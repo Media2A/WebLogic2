@@ -1,0 +1,182 @@
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-person-badge me-2"></i>
+        Role Management
+    </h2>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createRoleModal">
+        <i class="bi bi-plus-circle me-1"></i>
+        Create Role
+    </button>
+</div>
+
+<!-- Info Alert -->
+<div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>
+    <strong>About Roles:</strong> Roles group permissions together. Assign roles to users to grant them specific capabilities.
+    System roles (marked with badge) cannot be deleted or renamed.
+</div>
+
+<!-- Roles Cards Grid -->
+<div class="row" id="rolesGrid">
+    <div class="col-12 text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+</div>
+
+<!-- Create Role Modal -->
+<div class="modal fade" id="createRoleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-badge me-2"></i>
+                    Create New Role
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createRoleForm">
+                    <div class="mb-3">
+                        <label for="createRoleName" class="form-label">Role Name (lowercase identifier) *</label>
+                        <input type="text" class="form-control" id="createRoleName" required pattern="[a-z_]+"
+                               placeholder="e.g., content_manager">
+                        <small class="text-muted">Lowercase letters and underscores only</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="createRoleDisplayName" class="form-label">Display Name *</label>
+                        <input type="text" class="form-control" id="createRoleDisplayName" required
+                               placeholder="e.g., Content Manager">
+                    </div>
+                    <div class="mb-3">
+                        <label for="createRoleDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="createRoleDescription" rows="3"
+                                  placeholder="Describe what this role can do..."></textarea>
+                    </div>
+                </form>
+                <div id="createRoleError" class="alert alert-danger d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="createRoleBtn">
+                    <i class="bi bi-check-circle me-1"></i>
+                    Create Role
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Role Modal -->
+<div class="modal fade" id="editRoleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil-square me-2"></i>
+                    Edit Role
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editRoleForm">
+                    <input type="hidden" id="editRoleId">
+                    <div class="mb-3">
+                        <label for="editRoleName" class="form-label">Role Name</label>
+                        <input type="text" class="form-control" id="editRoleName" disabled>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editRoleDisplayName" class="form-label">Display Name *</label>
+                        <input type="text" class="form-control" id="editRoleDisplayName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editRoleDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="editRoleDescription" rows="3"></textarea>
+                    </div>
+                </form>
+                <div id="editRoleError" class="alert alert-danger d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="editRoleBtn">
+                    <i class="bi bi-save me-1"></i>
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manage Permissions Modal -->
+<div class="modal fade" id="permissionsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-key me-2"></i>
+                    Manage Permissions: <span id="permissionsRoleName"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="permissionsRoleId">
+
+                <!-- Current Permissions -->
+                <div class="mb-4">
+                    <h6 class="mb-3">
+                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                        Current Permissions
+                    </h6>
+                    <div id="currentPermissions" class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                        <div class="text-center text-muted py-3">Loading permissions...</div>
+                    </div>
+                </div>
+
+                <!-- Available Permissions -->
+                <div>
+                    <h6 class="mb-3">
+                        <i class="bi bi-plus-circle text-primary me-2"></i>
+                        Available Permissions
+                    </h6>
+                    <input type="text" class="form-control mb-3" id="permissionSearch"
+                           placeholder="Search permissions...">
+                    <div id="availablePermissions" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                        <div class="text-center text-muted py-3">Loading permissions...</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteRoleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Confirm Delete
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete role <strong id="deleteRoleName"></strong>?</p>
+                <p class="text-danger">This will remove the role from all users who have it!</p>
+                <input type="hidden" id="deleteRoleId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteRoleBtn">
+                    <i class="bi bi-trash me-1"></i>
+                    Delete Role
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,20 @@
+<div class="post-card">
+    <div class="post-content">
+        <h3 class="post-title">
+            <a href="/blog/post/{{slug}}">{{title}}</a>
+        </h3>
+        <div class="post-excerpt">{{excerpt}}</div>
+        <div class="post-meta">
+            <span>📅 {{publishedDate}}</span>
+            <span>👁 {{viewCount}} views</span>
+            <span>💬 {{commentCount}} comments</span>
+        </div>
+        {{#if categories}}
+        <div style="margin-top: 0.75rem;">
+            {{#each categories}}
+            <a href="/blog/category/{{slug}}" class="category-badge">{{name}}</a>
+            {{/each}}
+        </div>
+        {{/if}}
+    </div>
+</div>

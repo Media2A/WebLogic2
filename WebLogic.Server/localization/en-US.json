@@ -1,0 +1,8 @@
+{
+  "welcome": "Welcome",
+  "hello": "Hello, {0}",
+  "goodbye": "Goodbye",
+  "error.generic": "An error occurred",
+  "error.notfound": "Item not found",
+  "success.saved": "Successfully saved"
+}

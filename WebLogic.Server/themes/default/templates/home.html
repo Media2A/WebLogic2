@@ -1,0 +1,36 @@
+{{#if featuredPosts}}
+<div class="section">
+    <h2 class="section-title">✨ Featured Posts</h2>
+    <div class="posts-grid">
+        {{#each featuredPosts}}
+        {{> post-card}}
+        {{/each}}
+    </div>
+</div>
+{{/if}}
+
+<div class="section">
+    <h2 class="section-title">📰 Recent Posts</h2>
+    {{#if recentPosts}}
+    <div class="posts-grid">
+        {{#each recentPosts}}
+        {{> post-card}}
+        {{/each}}
+    </div>
+    {{#else}}
+    <p>No posts available yet.</p>
+    {{/if}}
+</div>
+
+{{#if categories}}
+<div class="sidebar" style="background: white; border-radius: 8px; padding: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+    <h3 style="margin-bottom: 1rem;">Categories</h3>
+    <ul style="list-style: none;">
+        {{#each categories}}
+        <li style="padding: 0.5rem 0;">
+            <a href="/blog/category/{{slug}}" style="color: #2c3e50; text-decoration: none;">{{name}}</a>
+        </li>
+        {{/each}}
+    </ul>
+</div>
+{{/if}}

@@ -1,0 +1,5 @@
+{
+  "SizeLimit": 10000,
+  "DefaultExpirationHours": 1,
+  "EnableCompression": true
+}

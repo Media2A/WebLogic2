@@ -1,0 +1,44 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Project References -->
+  <ItemGroup>
+    <ProjectReference Include="..\WebLogic.Shared\WebLogic.Shared.csproj" />
+    <ProjectReference Include="..\WebLogic.Server\WebLogic.Server.csproj" />
+    <ProjectReference Include="..\..\CodeLogic2\src\CodeLogic.csproj" />
+    <ProjectReference Include="..\..\CodeLogic2-Libs\CL.Core\CL.Core.csproj" />
+    <ProjectReference Include="..\..\CodeLogic2-Libs\CL.MySQL2\CL.MySQL2.csproj" />
+  </ItemGroup>
+
+  <!-- Include Theme folder as content -->
+  <ItemGroup>
+    <Content Include="Theme\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- Output to WebLogic.Server bin/libraries folder so CodeLogic can discover it -->
+  <Target Name="CopyToLibraries" AfterTargets="Build">
+    <PropertyGroup>
+      <LibrariesPath>$(MSBuildProjectDirectory)\..\WebLogic.Server\bin\$(Configuration)\net10.0\libraries</LibrariesPath>
+      <ThemesPath>$(MSBuildProjectDirectory)\..\WebLogic.Server\bin\$(Configuration)\net10.0\data\themes\admin</ThemesPath>
+    </PropertyGroup>
+    <MakeDir Directories="$(LibrariesPath)" />
+    <MakeDir Directories="$(ThemesPath)" />
+    <ItemGroup>
+      <LibraryFiles Include="$(OutDir)WebLogic.Modules.Admin.dll" />
+      <LibraryFiles Include="$(OutDir)WebLogic.Modules.Admin.pdb" />
+      <ThemeFiles Include="$(OutDir)Theme\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(LibraryFiles)" DestinationFolder="$(LibrariesPath)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(ThemeFiles)" DestinationFolder="$(ThemesPath)\%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Message Text="Copied Admin module to libraries folder: $(LibrariesPath)" Importance="high" />
+    <Message Text="Copied Admin theme to: $(ThemesPath)" Importance="high" />
+  </Target>
+
+</Project>

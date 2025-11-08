@@ -1,0 +1,15 @@
+{
+  "Id": "admin",
+  "Name": "WebLogic Admin Theme",
+  "Version": "1.0.0",
+  "Author": "WebLogic",
+  "Description": "Modern admin panel theme with Bootstrap 5",
+  "Screenshot": "screenshot.png",
+  "SupportedExtensions": ["weblogic.modules.admin"],
+  "Tags": ["admin", "bootstrap5", "dashboard"],
+  "Settings": {
+    "primaryColor": "#667eea",
+    "secondaryColor": "#764ba2",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+  }
+}

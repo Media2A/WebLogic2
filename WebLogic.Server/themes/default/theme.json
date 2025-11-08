@@ -1,0 +1,15 @@
+{
+  "Id": "default",
+  "Name": "WebLogic Default Theme",
+  "Version": "1.0.0",
+  "Author": "WebLogic",
+  "Description": "Clean and modern default theme for WebLogic CMS",
+  "Screenshot": "screenshot.png",
+  "SupportedExtensions": [],
+  "Tags": ["default", "modern", "clean"],
+  "Settings": {
+    "primaryColor": "#667eea",
+    "secondaryColor": "#764ba2",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+  }
+}

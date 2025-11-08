@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            max-width: 400px;
+            width: 100%;
+        }
+        .login-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        .login-header h2 {
+            margin: 0;
+            font-weight: 600;
+        }
+        .login-body {
+            padding: 2rem;
+        }
+        .form-control:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        .btn-login {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            padding: 0.75rem;
+            font-weight: 600;
+        }
+        .btn-login:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+            transition: all 0.3s;
+        }
+        .input-group-text {
+            background-color: #f8f9fa;
+            border-right: none;
+        }
+        .form-control {
+            border-left: none;
+        }
+        .alert {
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="login-card">
+                    <div class="login-header">
+                        <i class="bi bi-shield-lock fs-1 mb-3"></i>
+                        <h2>Admin Panel</h2>
+                        <p class="mb-0">WebLogic Administration</p>
+                    </div>
+                    <div class="login-body">
+                        {{#if error}}
+                        <div class="alert alert-danger" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            {{error}}
+                        </div>
+                        {{/if}}
+
+                        <form id="loginForm">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Username or Email</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-person"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="username" name="username"
+                                           placeholder="Enter username or email" required autofocus>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="password" class="form-label">Password</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-lock"></i>
+                                    </span>
+                                    <input type="password" class="form-control" id="password" name="password"
+                                           placeholder="Enter password" required>
+                                </div>
+                            </div>
+
+                            <div id="errorMessage" class="alert alert-danger d-none" role="alert"></div>
+
+                            <button type="submit" class="btn btn-primary btn-login w-100">
+                                <span id="loginText">
+                                    <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+                                </span>
+                                <span id="loginSpinner" class="d-none">
+                                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                    Signing in...
+                                </span>
+                            </button>
+                        </form>
+
+                        <div class="text-center mt-4">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Default: admin / Admin123!
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#loginForm').on('submit', function(e) {
+                e.preventDefault();
+
+                const username = $('#username').val();
+                const password = $('#password').val();
+                const $errorMessage = $('#errorMessage');
+                const $loginText = $('#loginText');
+                const $loginSpinner = $('#loginSpinner');
+                const $submitBtn = $(this).find('button[type="submit"]');
+
+                // Hide error
+                $errorMessage.addClass('d-none');
+
+                // Show loading state
+                $loginText.addClass('d-none');
+                $loginSpinner.removeClass('d-none');
+                $submitBtn.prop('disabled', true);
+
+                $.ajax({
+                    url: '/api/v1/admin/api/login',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ username, password }),
+                    success: function(response) {
+                        if (response.success) {
+                            window.location.href = '/admin';
+                        } else {
+                            $errorMessage.text(response.error || 'Login failed').removeClass('d-none');
+                            $loginText.removeClass('d-none');
+                            $loginSpinner.addClass('d-none');
+                            $submitBtn.prop('disabled', false);
+                        }
+                    },
+                    error: function(xhr) {
+                        let errorMsg = 'An error occurred. Please try again.';
+                        if (xhr.responseJSON && xhr.responseJSON.error) {
+                            errorMsg = xhr.responseJSON.error;
+                        }
+                        $errorMessage.text(errorMsg).removeClass('d-none');
+                        $loginText.removeClass('d-none');
+                        $loginSpinner.addClass('d-none');
+                        $submitBtn.prop('disabled', false);
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

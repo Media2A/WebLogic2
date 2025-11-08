@@ -1,0 +1,378 @@
+<script>
+$(document).ready(function() {
+    let currentPage = 1;
+    const pageSize = 20;
+    let searchTerm = '';
+    let statusFilter = '';
+
+    // Load users on page load
+    loadUsers();
+    loadRoles();
+
+    // Search input with debounce
+    let searchTimeout;
+    $('#searchInput').on('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(function() {
+            searchTerm = $('#searchInput').val();
+            currentPage = 1;
+            loadUsers();
+        }, 500);
+    });
+
+    // Status filter
+    $('#statusFilter').on('change', function() {
+        statusFilter = $(this).val();
+        currentPage = 1;
+        loadUsers();
+    });
+
+    // Clear filters
+    $('#clearFilters').on('click', function() {
+        $('#searchInput').val('');
+        $('#statusFilter').val('');
+        searchTerm = '';
+        statusFilter = '';
+        currentPage = 1;
+        loadUsers();
+    });
+
+    // Create user
+    $('#createUserBtn').on('click', function() {
+        createUser();
+    });
+
+    // Edit user
+    $('#editUserBtn').on('click', function() {
+        updateUser();
+    });
+
+    // Unlock account
+    $('#unlockAccountBtn').on('click', function() {
+        $('#editIsActive').prop('checked', true);
+        $('#lockedSection').hide();
+    });
+
+    // Delete user
+    $('#confirmDeleteBtn').on('click', function() {
+        deleteUser();
+    });
+
+    // Load users from API
+    function loadUsers() {
+        const params = new URLSearchParams({
+            page: currentPage,
+            pageSize: pageSize
+        });
+
+        if (searchTerm) params.append('search', searchTerm);
+        if (statusFilter) params.append('isActive', statusFilter);
+
+        $.ajax({
+            url: `/api/v1/admin/api/users?${params.toString()}`,
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    renderUsers(response.data.users);
+                    renderPagination(response.data.pagination);
+                } else {
+                    showError('Failed to load users');
+                }
+            },
+            error: function(xhr) {
+                showError('Error loading users: ' + (xhr.responseJSON?.message || 'Unknown error'));
+            }
+        });
+    }
+
+    // Load roles for dropdown
+    function loadRoles() {
+        $.ajax({
+            url: '/api/v1/admin/api/roles',
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    const select = $('#createRole');
+                    select.empty().append('<option value="">No role</option>');
+                    response.data.roles.forEach(role => {
+                        select.append(`<option value="${role.id}">${role.displayName}</option>`);
+                    });
+                }
+            }
+        });
+    }
+
+    // Render users table
+    function renderUsers(users) {
+        const tbody = $('#usersTableBody');
+        tbody.empty();
+
+        if (users.length === 0) {
+            tbody.append('<tr><td colspan="7" class="text-center text-muted">No users found</td></tr>');
+            return;
+        }
+
+        users.forEach(user => {
+            const statusBadge = user.isActive
+                ? '<span class="badge bg-success">Active</span>'
+                : '<span class="badge bg-secondary">Inactive</span>';
+
+            const lockedBadge = user.isLocked
+                ? '<span class="badge bg-danger ms-1">Locked</span>'
+                : '';
+
+            const lastLogin = user.lastLoginAt
+                ? new Date(user.lastLoginAt).toLocaleString()
+                : '<span class="text-muted">Never</span>';
+
+            const created = new Date(user.createdAt).toLocaleDateString();
+
+            tbody.append(`
+                <tr>
+                    <td>
+                        <strong>${escapeHtml(user.username)}</strong>
+                        ${lockedBadge}
+                    </td>
+                    <td>${escapeHtml(user.email)}</td>
+                    <td>${escapeHtml(user.fullName)}</td>
+                    <td>${statusBadge}</td>
+                    <td>${lastLogin}</td>
+                    <td>${created}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editUser('${user.id}')">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete('${user.id}', '${escapeHtml(user.username)}')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `);
+        });
+    }
+
+    // Render pagination
+    function renderPagination(pagination) {
+        const nav = $('#pagination');
+        nav.empty();
+
+        if (pagination.totalPages <= 1) return;
+
+        // Previous button
+        nav.append(`
+            <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="changePage(${currentPage - 1}); return false;">Previous</a>
+            </li>
+        `);
+
+        // Page numbers
+        const startPage = Math.max(1, currentPage - 2);
+        const endPage = Math.min(pagination.totalPages, currentPage + 2);
+
+        if (startPage > 1) {
+            nav.append(`<li class="page-item"><a class="page-link" href="#" onclick="changePage(1); return false;">1</a></li>`);
+            if (startPage > 2) {
+                nav.append(`<li class="page-item disabled"><span class="page-link">...</span></li>`);
+            }
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            nav.append(`
+                <li class="page-item ${i === currentPage ? 'active' : ''}">
+                    <a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>
+                </li>
+            `);
+        }
+
+        if (endPage < pagination.totalPages) {
+            if (endPage < pagination.totalPages - 1) {
+                nav.append(`<li class="page-item disabled"><span class="page-link">...</span></li>`);
+            }
+            nav.append(`<li class="page-item"><a class="page-link" href="#" onclick="changePage(${pagination.totalPages}); return false;">${pagination.totalPages}</a></li>`);
+        }
+
+        // Next button
+        nav.append(`
+            <li class="page-item ${currentPage === pagination.totalPages ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="changePage(${currentPage + 1}); return false;">Next</a>
+            </li>
+        `);
+    }
+
+    // Create user
+    function createUser() {
+        const username = $('#createUsername').val().trim();
+        const email = $('#createEmail').val().trim();
+        const password = $('#createPassword').val();
+        const firstName = $('#createFirstName').val().trim();
+        const lastName = $('#createLastName').val().trim();
+        const roleId = $('#createRole').val();
+
+        if (!username || !email || !password) {
+            showError('Please fill in all required fields', 'createUserError');
+            return;
+        }
+
+        const data = {
+            username: username,
+            email: email,
+            password: password,
+            firstName: firstName || null,
+            lastName: lastName || null,
+            roleId: roleId || null
+        };
+
+        $.ajax({
+            url: '/api/v1/admin/api/users',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(response) {
+                if (response.success) {
+                    $('#createUserModal').modal('hide');
+                    $('#createUserForm')[0].reset();
+                    loadUsers();
+                    showSuccess('User created successfully');
+                } else {
+                    showError(response.message || 'Failed to create user', 'createUserError');
+                }
+            },
+            error: function(xhr) {
+                showError(xhr.responseJSON?.message || 'Error creating user', 'createUserError');
+            }
+        });
+    }
+
+    // Edit user (global function)
+    window.editUser = function(userId) {
+        $.ajax({
+            url: `/api/v1/admin/api/users/${userId}`,
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    const user = response.data.user;
+                    $('#editUserId').val(user.id);
+                    $('#editUsername').val(user.username);
+                    $('#editEmail').val(user.email);
+                    $('#editFirstName').val(user.firstName || '');
+                    $('#editLastName').val(user.lastName || '');
+                    $('#editIsActive').prop('checked', user.isActive);
+                    $('#editIsEmailVerified').prop('checked', user.isEmailVerified);
+                    $('#editNewPassword').val('');
+
+                    if (user.isLocked) {
+                        $('#lockedSection').show();
+                    } else {
+                        $('#lockedSection').hide();
+                    }
+
+                    $('#editUserModal').modal('show');
+                } else {
+                    showError('Failed to load user details');
+                }
+            },
+            error: function(xhr) {
+                showError('Error loading user: ' + (xhr.responseJSON?.message || 'Unknown error'));
+            }
+        });
+    };
+
+    // Update user
+    function updateUser() {
+        const userId = $('#editUserId').val();
+        const data = {
+            email: $('#editEmail').val().trim(),
+            firstName: $('#editFirstName').val().trim() || null,
+            lastName: $('#editLastName').val().trim() || null,
+            isActive: $('#editIsActive').is(':checked'),
+            isEmailVerified: $('#editIsEmailVerified').is(':checked'),
+            clearLock: $('#lockedSection').is(':visible') ? true : null
+        };
+
+        const newPassword = $('#editNewPassword').val();
+        if (newPassword) {
+            data.newPassword = newPassword;
+        }
+
+        $.ajax({
+            url: `/api/v1/admin/api/users/${userId}`,
+            method: 'PUT',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(response) {
+                if (response.success) {
+                    $('#editUserModal').modal('hide');
+                    loadUsers();
+                    showSuccess('User updated successfully');
+                } else {
+                    showError(response.message || 'Failed to update user', 'editUserError');
+                }
+            },
+            error: function(xhr) {
+                showError(xhr.responseJSON?.message || 'Error updating user', 'editUserError');
+            }
+        });
+    }
+
+    // Confirm delete (global function)
+    window.confirmDelete = function(userId, username) {
+        $('#deleteUserId').val(userId);
+        $('#deleteUsername').text(username);
+        $('#deleteUserModal').modal('show');
+    };
+
+    // Delete user
+    function deleteUser() {
+        const userId = $('#deleteUserId').val();
+
+        $.ajax({
+            url: `/api/v1/admin/api/users/${userId}`,
+            method: 'DELETE',
+            success: function(response) {
+                if (response.success) {
+                    $('#deleteUserModal').modal('hide');
+                    loadUsers();
+                    showSuccess('User deleted successfully');
+                } else {
+                    showError(response.message || 'Failed to delete user');
+                }
+            },
+            error: function(xhr) {
+                showError(xhr.responseJSON?.message || 'Error deleting user');
+            }
+        });
+    }
+
+    // Change page (global function)
+    window.changePage = function(page) {
+        currentPage = page;
+        loadUsers();
+        window.scrollTo(0, 0);
+    };
+
+    // Helper functions
+    function escapeHtml(text) {
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
+    function showError(message, targetId = null) {
+        if (targetId) {
+            $(`#${targetId}`).text(message).removeClass('d-none');
+        } else {
+            alert(message);
+        }
+    }
+
+    function showSuccess(message) {
+        // You can implement a toast notification here
+        alert(message);
+    }
+});
+</script>

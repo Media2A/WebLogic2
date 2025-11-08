@@ -1,0 +1,454 @@
+<script>
+$(document).ready(function() {
+    let allPermissions = [];
+    let currentRolePermissions = [];
+    let searchTerm = '';
+
+    // Load roles on page load
+    loadRoles();
+
+    // Create role
+    $('#createRoleBtn').on('click', function() {
+        createRole();
+    });
+
+    // Edit role
+    $('#editRoleBtn').on('click', function() {
+        updateRole();
+    });
+
+    // Delete role
+    $('#confirmDeleteRoleBtn').on('click', function() {
+        deleteRole();
+    });
+
+    // Permission search
+    $('#permissionSearch').on('input', function() {
+        searchTerm = $(this).val().toLowerCase();
+        renderAvailablePermissions();
+    });
+
+    // Load roles from API
+    function loadRoles() {
+        $.ajax({
+            url: '/api/v1/admin/api/roles',
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    renderRoles(response.data.roles);
+                } else {
+                    showError('Failed to load roles');
+                }
+            },
+            error: function(xhr) {
+                showError('Error loading roles: ' + (xhr.responseJSON?.message || 'Unknown error'));
+            }
+        });
+    }
+
+    // Render roles as cards
+    function renderRoles(roles) {
+        const grid = $('#rolesGrid');
+        grid.empty();
+
+        if (roles.length === 0) {
+            grid.append('<div class="col-12 text-center text-muted py-5">No roles found</div>');
+            return;
+        }
+
+        roles.forEach(role => {
+            const systemBadge = role.isSystemRole
+                ? '<span class="badge bg-warning text-dark ms-2"><i class="bi bi-shield-lock me-1"></i>System</span>'
+                : '';
+
+            const deleteBtn = role.isSystemRole
+                ? ''
+                : `<button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteRole('${role.id}', '${escapeHtml(role.displayName)}')">
+                       <i class="bi bi-trash"></i> Delete
+                   </button>`;
+
+            const card = `
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="bi bi-person-badge text-primary me-2"></i>
+                                ${escapeHtml(role.displayName)}
+                                ${systemBadge}
+                            </h5>
+                            <p class="text-muted small mb-2">
+                                <code>${escapeHtml(role.name)}</code>
+                            </p>
+                            <p class="card-text">
+                                ${escapeHtml(role.description || 'No description')}
+                            </p>
+                            <p class="text-muted small mb-3">
+                                <i class="bi bi-calendar me-1"></i>
+                                Created: ${new Date(role.createdAt).toLocaleDateString()}
+                            </p>
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <div class="btn-group w-100" role="group">
+                                <button class="btn btn-sm btn-outline-primary" onclick="managePermissions('${role.id}', '${escapeHtml(role.displayName)}')">
+                                    <i class="bi bi-key"></i> Permissions
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="editRole('${role.id}')">
+                                    <i class="bi bi-pencil"></i> Edit
+                                </button>
+                                ${deleteBtn}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            grid.append(card);
+        });
+    }
+
+    // Create role
+    function createRole() {
+        const name = $('#createRoleName').val().trim().toLowerCase();
+        const displayName = $('#createRoleDisplayName').val().trim();
+        const description = $('#createRoleDescription').val().trim();
+
+        if (!name || !displayName) {
+            showError('Please fill in all required fields', 'createRoleError');
+            return;
+        }
+
+        // Validate name format
+        if (!/^[a-z_]+$/.test(name)) {
+            showError('Role name must contain only lowercase letters and underscores', 'createRoleError');
+            return;
+        }
+
+        const data = {
+            name: name,
+            displayName: displayName,
+            description: description || null
+        };
+
+        $.ajax({
+            url: '/api/v1/admin/api/roles',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(response) {
+                if (response.success) {
+                    $('#createRoleModal').modal('hide');
+                    $('#createRoleForm')[0].reset();
+                    loadRoles();
+                    showSuccess('Role created successfully');
+                } else {
+                    showError(response.message || 'Failed to create role', 'createRoleError');
+                }
+            },
+            error: function(xhr) {
+                showError(xhr.responseJSON?.message || 'Error creating role', 'createRoleError');
+            }
+        });
+    }
+
+    // Edit role (global function)
+    window.editRole = function(roleId) {
+        $.ajax({
+            url: `/api/v1/admin/api/roles/${roleId}`,
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    const role = response.data.role;
+                    $('#editRoleId').val(role.id);
+                    $('#editRoleName').val(role.name);
+                    $('#editRoleDisplayName').val(role.displayName);
+                    $('#editRoleDescription').val(role.description || '');
+                    $('#editRoleModal').modal('show');
+                } else {
+                    showError('Failed to load role details');
+                }
+            },
+            error: function(xhr) {
+                showError('Error loading role: ' + (xhr.responseJSON?.message || 'Unknown error'));
+            }
+        });
+    };
+
+    // Update role
+    function updateRole() {
+        const roleId = $('#editRoleId').val();
+        const data = {
+            displayName: $('#editRoleDisplayName').val().trim(),
+            description: $('#editRoleDescription').val().trim() || null
+        };
+
+        $.ajax({
+            url: `/api/v1/admin/api/roles/${roleId}`,
+            method: 'PUT',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(response) {
+                if (response.success) {
+                    $('#editRoleModal').modal('hide');
+                    loadRoles();
+                    showSuccess('Role updated successfully');
+                } else {
+                    showError(response.message || 'Failed to update role', 'editRoleError');
+                }
+            },
+            error: function(xhr) {
+                showError(xhr.responseJSON?.message || 'Error updating role', 'editRoleError');
+            }
+        });
+    }
+
+    // Confirm delete (global function)
+    window.confirmDeleteRole = function(roleId, roleName) {
+        $('#deleteRoleId').val(roleId);
+        $('#deleteRoleName').text(roleName);
+        $('#deleteRoleModal').modal('show');
+    };
+
+    // Delete role
+    function deleteRole() {
+        const roleId = $('#deleteRoleId').val();
+
+        $.ajax({
+            url: `/api/v1/admin/api/roles/${roleId}`,
+            method: 'DELETE',
+            success: function(response) {
+                if (response.success) {
+                    $('#deleteRoleModal').modal('hide');
+                    loadRoles();
+                    showSuccess('Role deleted successfully');
+                } else {
+                    showError(response.message || 'Failed to delete role');
+                }
+            },
+            error: function(xhr) {
+                showError(xhr.responseJSON?.message || 'Error deleting role');
+            }
+        });
+    }
+
+    // Manage permissions (global function)
+    window.managePermissions = function(roleId, roleName) {
+        $('#permissionsRoleId').val(roleId);
+        $('#permissionsRoleName').text(roleName);
+        $('#permissionSearch').val('');
+        searchTerm = '';
+
+        // Load all permissions
+        loadAllPermissions();
+
+        // Load role's current permissions
+        loadRolePermissions(roleId);
+
+        $('#permissionsModal').modal('show');
+    };
+
+    // Load all permissions
+    function loadAllPermissions() {
+        $.ajax({
+            url: '/api/v1/admin/api/permissions',
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    allPermissions = response.data.permissions;
+                    renderAvailablePermissions();
+                } else {
+                    $('#availablePermissions').html('<div class="text-danger">Failed to load permissions</div>');
+                }
+            },
+            error: function(xhr) {
+                $('#availablePermissions').html('<div class="text-danger">Error loading permissions</div>');
+            }
+        });
+    }
+
+    // Load role's current permissions
+    function loadRolePermissions(roleId) {
+        $.ajax({
+            url: `/api/v1/admin/api/roles/${roleId}/permissions`,
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    currentRolePermissions = response.data.permissions || [];
+                    renderCurrentPermissions();
+                    renderAvailablePermissions();
+                } else {
+                    $('#currentPermissions').html('<div class="text-danger">Failed to load permissions</div>');
+                }
+            },
+            error: function(xhr) {
+                $('#currentPermissions').html('<div class="text-danger">Error loading permissions</div>');
+            }
+        });
+    }
+
+    // Render current permissions
+    function renderCurrentPermissions() {
+        const container = $('#currentPermissions');
+        container.empty();
+
+        if (currentRolePermissions.length === 0) {
+            container.html('<div class="text-muted text-center py-2">No permissions assigned</div>');
+            return;
+        }
+
+        // Group by resource
+        const grouped = {};
+        currentRolePermissions.forEach(perm => {
+            if (!grouped[perm.resource]) {
+                grouped[perm.resource] = [];
+            }
+            grouped[perm.resource].push(perm);
+        });
+
+        Object.keys(grouped).sort().forEach(resource => {
+            container.append(`<div class="mb-2"><strong class="text-uppercase">${resource}:</strong></div>`);
+            grouped[resource].forEach(perm => {
+                container.append(`
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                        <div>
+                            <span class="badge bg-success me-2">${perm.action}</span>
+                            <small class="text-muted">${escapeHtml(perm.description || perm.name)}</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger" onclick="removePermission('${perm.id}')">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
+                `);
+            });
+        });
+    }
+
+    // Render available permissions
+    function renderAvailablePermissions() {
+        const container = $('#availablePermissions');
+        container.empty();
+
+        // Filter out already assigned permissions
+        const assignedIds = currentRolePermissions.map(p => p.id);
+        let available = allPermissions.filter(p => !assignedIds.includes(p.id));
+
+        // Apply search filter
+        if (searchTerm) {
+            available = available.filter(p =>
+                p.name.toLowerCase().includes(searchTerm) ||
+                p.resource.toLowerCase().includes(searchTerm) ||
+                p.action.toLowerCase().includes(searchTerm) ||
+                (p.description && p.description.toLowerCase().includes(searchTerm))
+            );
+        }
+
+        if (available.length === 0) {
+            container.html('<div class="text-muted text-center py-2">No available permissions</div>');
+            return;
+        }
+
+        // Group by resource
+        const grouped = {};
+        available.forEach(perm => {
+            if (!grouped[perm.resource]) {
+                grouped[perm.resource] = [];
+            }
+            grouped[perm.resource].push(perm);
+        });
+
+        Object.keys(grouped).sort().forEach(resource => {
+            container.append(`<div class="mb-2"><strong class="text-uppercase">${resource}:</strong></div>`);
+            grouped[resource].forEach(perm => {
+                container.append(`
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded bg-light">
+                        <div>
+                            <span class="badge bg-secondary me-2">${perm.action}</span>
+                            <small class="text-muted">${escapeHtml(perm.description || perm.name)}</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-success" onclick="assignPermission('${perm.id}')">
+                            <i class="bi bi-plus"></i> Add
+                        </button>
+                    </div>
+                `);
+            });
+        });
+    }
+
+    // Assign permission (global function)
+    window.assignPermission = function(permissionId) {
+        const roleId = $('#permissionsRoleId').val();
+
+        $.ajax({
+            url: `/api/v1/admin/api/roles/${roleId}/permissions`,
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ permissionId: permissionId }),
+            success: function(response) {
+                if (response.success) {
+                    loadRolePermissions(roleId);
+                    showSuccess('Permission assigned');
+                } else {
+                    showError(response.message || 'Failed to assign permission');
+                }
+            },
+            error: function(xhr) {
+                showError(xhr.responseJSON?.message || 'Error assigning permission');
+            }
+        });
+    };
+
+    // Remove permission (global function)
+    window.removePermission = function(permissionId) {
+        const roleId = $('#permissionsRoleId').val();
+
+        $.ajax({
+            url: `/api/v1/admin/api/roles/${roleId}/permissions/${permissionId}`,
+            method: 'DELETE',
+            success: function(response) {
+                if (response.success) {
+                    loadRolePermissions(roleId);
+                    showSuccess('Permission removed');
+                } else {
+                    showError(response.message || 'Failed to remove permission');
+                }
+            },
+            error: function(xhr) {
+                showError(xhr.responseJSON?.message || 'Error removing permission');
+            }
+        });
+    };
+
+    // Helper functions
+    function escapeHtml(text) {
+        if (!text) return '';
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
+    function showError(message, targetId = null) {
+        if (targetId) {
+            $(`#${targetId}`).text(message).removeClass('d-none');
+        } else {
+            alert(message);
+        }
+    }
+
+    function showSuccess(message) {
+        // You can implement a toast notification here
+        const toast = $(`
+            <div class="position-fixed top-0 end-0 p-3" style="z-index: 9999">
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="bi bi-check-circle me-2"></i>${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            </div>
+        `);
+        $('body').append(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+});
+</script>
