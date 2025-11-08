@@ -55,7 +55,7 @@ public class ApiRequest
     /// <summary>
     /// Authenticated user ID (if authenticated)
     /// </summary>
-    public int? UserId { get; init; }
+    public Guid? UserId { get; init; }
 
     /// <summary>
     /// User permissions (if authenticated)
@@ -82,7 +82,11 @@ public class ApiRequest
 
         try
         {
-            return JsonSerializer.Deserialize<T>(Body);
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
+            return JsonSerializer.Deserialize<T>(Body, options);
         }
         catch
         {

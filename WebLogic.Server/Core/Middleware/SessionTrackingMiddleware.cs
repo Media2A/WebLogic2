@@ -33,13 +33,19 @@ public class SessionTrackingMiddleware
             return;
         }
 
+        // IMPORTANT: Let the request process first, THEN access the session
+        // This ensures ASP.NET Core has loaded the session from the cookie/cache
+        // before we try to track it in the database
+        await _next(context);
+
         try
         {
+            // Now access the session AFTER the request has been processed
+            // This ensures the session ID from the cookie has been loaded
             var sessionId = context.Session.Id;
             if (string.IsNullOrEmpty(sessionId))
             {
-                // Session not yet initialized, let it initialize first
-                await _next(context);
+                // Session not available
                 return;
             }
 
@@ -47,7 +53,6 @@ public class SessionTrackingMiddleware
             if (repository == null)
             {
                 _logger?.Warning("Session tracking disabled: Database repository not available");
-                await _next(context);
                 return;
             }
 
@@ -91,8 +96,6 @@ public class SessionTrackingMiddleware
             _logger?.Error("Error tracking session", ex);
             // Don't fail the request if session tracking fails
         }
-
-        await _next(context);
     }
 
     private string GetClientIp(HttpContext context)

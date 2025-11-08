@@ -1,6 +1,10 @@
 using CL.MySQL2;
 using CodeLogic.Abstractions;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
+using WebLogic.Server.Core.Configuration;
 using WebLogic.Server.Models.Auth;
+using WebLogic.Server.Models.Database;
 
 namespace WebLogic.Server.Services.Auth;
 
@@ -11,14 +15,23 @@ public class AuthService
 {
     private readonly MySQL2Library _mysql;
     private readonly CodeLogic.Abstractions.ILogger? _logger;
+    private readonly WebLogicServerOptions _options;
+    private readonly IHttpContextAccessor? _httpContextAccessor;
+    private readonly DatabaseLogger? _dbLogger;
     private const string ConnectionId = "Default";
-    private const int MaxFailedAttempts = 5;
-    private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
 
-    public AuthService(MySQL2Library mysql, CodeLogic.Abstractions.ILogger? logger = null)
+    public AuthService(
+        MySQL2Library mysql,
+        IOptions<WebLogicServerOptions> options,
+        CodeLogic.Abstractions.ILogger? logger = null,
+        IHttpContextAccessor? httpContextAccessor = null,
+        DatabaseLogger? dbLogger = null)
     {
         _mysql = mysql;
         _logger = logger;
+        _options = options.Value;
+        _httpContextAccessor = httpContextAccessor;
+        _dbLogger = dbLogger;
     }
 
     /// <summary>
@@ -26,6 +39,9 @@ public class AuthService
     /// </summary>
     public async Task<AuthResult> LoginAsync(string usernameOrEmail, string password, string? ipAddress = null)
     {
+        User? user = null;
+        string? failureReason = null;
+
         try
         {
             Console.WriteLine($"[AuthService] LoginAsync called - Username: '{usernameOrEmail}', Password length: {password?.Length ?? 0}, IP: {ipAddress}");
@@ -36,9 +52,14 @@ public class AuthService
 
             Console.WriteLine($"[AuthService] GetAllAsync result - Success: {allUsersResult.Success}, Data count: {allUsersResult.Data?.Count() ?? 0}");
 
-            User? user = null;
             if (allUsersResult.Success && allUsersResult.Data != null)
             {
+                // Debug: Log all user IDs from database
+                foreach (var u in allUsersResult.Data)
+                {
+                    Console.WriteLine($"[AuthService] DEBUG: User in DB - Username: '{u.Username}', ID: '{u.Id}'");
+                }
+
                 user = allUsersResult.Data.FirstOrDefault(u =>
                     u.Username == usernameOrEmail || u.Email == usernameOrEmail);
             }
@@ -47,10 +68,14 @@ public class AuthService
             {
                 Console.WriteLine($"[AuthService] User not found for: '{usernameOrEmail}'");
                 _logger?.Warning($"Login attempt for non-existent user: {usernameOrEmail}");
+                failureReason = "User not found";
+                await LogLoginAttemptAsync(null, usernameOrEmail, ipAddress, false, failureReason);
+                await _dbLogger?.LogSecurityAsync(Models.Database.LogLevel.Warning, $"Login attempt for non-existent user: {usernameOrEmail}", null, usernameOrEmail, new { ipAddress, failureReason }, "AuthService")!;
                 return AuthResult.Failed("Invalid username or password");
             }
 
             Console.WriteLine($"[AuthService] User found - Username: '{user.Username}', Email: '{user.Email}', IsActive: {user.IsActive}, IsLocked: {user.IsLocked}");
+            Console.WriteLine($"[AuthService] User ID from database: '{user.Id}' (IsEmpty: {user.Id == Guid.Empty})");
             Console.WriteLine($"[AuthService] User PasswordHash length: {user.PasswordHash?.Length ?? 0}");
             Console.WriteLine($"[AuthService] User PasswordHash (first 20 chars): {(user.PasswordHash?.Length > 20 ? user.PasswordHash.Substring(0, 20) : user.PasswordHash)}");
 
@@ -59,6 +84,9 @@ public class AuthService
             {
                 Console.WriteLine($"[AuthService] User is not active");
                 _logger?.Warning($"Login attempt for inactive user: {user.Username} ({user.Id})");
+                failureReason = "Account is disabled";
+                await LogLoginAttemptAsync(user.Id, usernameOrEmail, ipAddress, false, failureReason);
+                await _dbLogger?.LogSecurityAsync(Models.Database.LogLevel.Warning, $"Login attempt for disabled account: {user.Username}", user.Id, user.Username, new { ipAddress, failureReason }, "AuthService")!;
                 return AuthResult.Failed("Account is disabled");
             }
 
@@ -68,6 +96,9 @@ public class AuthService
                 var timeRemaining = user.LockedUntil!.Value - DateTime.UtcNow;
                 Console.WriteLine($"[AuthService] User is locked until: {user.LockedUntil}");
                 _logger?.Warning($"Login attempt for locked user: {user.Username} ({user.Id})");
+                failureReason = $"Account locked until {user.LockedUntil:yyyy-MM-dd HH:mm:ss} UTC";
+                await LogLoginAttemptAsync(user.Id, usernameOrEmail, ipAddress, false, failureReason);
+                await _dbLogger?.LogSecurityAsync(Models.Database.LogLevel.Warning, $"Login attempt for locked account: {user.Username}", user.Id, user.Username, new { ipAddress, failureReason, lockedUntil = user.LockedUntil, failedAttempts = user.FailedLoginAttempts }, "AuthService")!;
                 return AuthResult.Failed($"Account is locked. Try again in {(int)timeRemaining.TotalMinutes} minutes");
             }
 
@@ -85,6 +116,9 @@ public class AuthService
                 await IncrementFailedLoginAttemptsAsync(user);
                 Console.WriteLine($"[AuthService] Password verification FAILED for user: {user.Username}");
                 _logger?.Warning($"Failed login attempt for user: {user.Username} ({user.Id}) from IP: {ipAddress}");
+                failureReason = "Invalid password";
+                await LogLoginAttemptAsync(user.Id, usernameOrEmail, ipAddress, false, failureReason);
+                await _dbLogger?.LogAuthenticationAsync(Models.Database.LogLevel.Warning, $"Failed login: Invalid password for user {user.Username}", user.Id, user.Username, new { ipAddress, failureReason, failedAttempts = user.FailedLoginAttempts + 1 }, "AuthService")!;
                 return AuthResult.Failed("Invalid username or password");
             }
 
@@ -93,11 +127,16 @@ public class AuthService
 
             _logger?.Info($"Successful login: {user.Username} ({user.Id}) from IP: {ipAddress}");
 
+            await LogLoginAttemptAsync(user.Id, usernameOrEmail, ipAddress, true, null);
+            await _dbLogger?.LogAuthenticationAsync(Models.Database.LogLevel.Info, $"Successful login: {user.Username}", user.Id, user.Username, new { ipAddress }, "AuthService")!;
+
             return AuthResult.Success(user);
         }
         catch (Exception ex)
         {
             _logger?.Error($"Login error for {usernameOrEmail}", ex);
+            failureReason = $"Exception: {ex.Message}";
+            await LogLoginAttemptAsync(user?.Id, usernameOrEmail, ipAddress, false, failureReason);
             return AuthResult.Failed("An error occurred during login");
         }
     }
@@ -107,10 +146,10 @@ public class AuthService
     /// </summary>
     public async Task<User?> GetUserByIdAsync(Guid userId)
     {
-        var queryBuilder = _mysql.GetQueryBuilder<User>(ConnectionId);
-        queryBuilder?.Where(u => u.Id == userId);
-
-        var result = await queryBuilder!.FirstOrDefaultAsync();
+        // Testing: QueryBuilder should work now after the fix!
+        var qb = _mysql.GetQueryBuilder<User>(ConnectionId);
+        qb.Where(u => u.Id == userId);
+        var result = await qb.FirstOrDefaultAsync();
         return result.Success ? result.Data : null;
     }
 
@@ -121,11 +160,11 @@ public class AuthService
     {
         try
         {
-            // Query UserRole junction table
+            // Testing: QueryBuilder should work now after the fix!
             var userRolesQuery = _mysql.GetQueryBuilder<UserRole>(ConnectionId);
-            userRolesQuery?.Where(ur => ur.UserId == userId);
+            userRolesQuery.Where(ur => ur.UserId == userId);
 
-            var userRolesResult = await userRolesQuery!.ExecuteAsync();
+            var userRolesResult = await userRolesQuery.ExecuteAsync();
             if (!userRolesResult.Success || userRolesResult.Data == null)
             {
                 return new List<Role>();
@@ -133,14 +172,13 @@ public class AuthService
 
             var roleIds = userRolesResult.Data.Select(ur => ur.RoleId).ToList();
 
-            // Get roles by IDs - need to query each individually or use SQL
-            // For now, query individually (can optimize with raw SQL later)
+            // Get roles by IDs
             var roles = new List<Role>();
             foreach (var roleId in roleIds)
             {
                 var roleQuery = _mysql.GetQueryBuilder<Role>(ConnectionId);
-                roleQuery?.Where(r => r.Id == roleId);
-                var roleResult = await roleQuery!.FirstOrDefaultAsync();
+                roleQuery.Where(r => r.Id == roleId);
+                var roleResult = await roleQuery.FirstOrDefaultAsync();
                 if (roleResult.Success && roleResult.Data != null)
                 {
                     roles.Add(roleResult.Data);
@@ -170,13 +208,13 @@ public class AuthService
 
             var roleIds = roles.Select(r => r.Id).ToList();
 
-            // Query RolePermission junction table for each role
+            // Testing: QueryBuilder should work now after the fix!
             var permissionIds = new HashSet<Guid>();
             foreach (var roleId in roleIds)
             {
                 var rolePermsQuery = _mysql.GetQueryBuilder<RolePermission>(ConnectionId);
-                rolePermsQuery?.Where(rp => rp.RoleId == roleId);
-                var rolePermsResult = await rolePermsQuery!.ExecuteAsync();
+                rolePermsQuery.Where(rp => rp.RoleId == roleId);
+                var rolePermsResult = await rolePermsQuery.ExecuteAsync();
                 if (rolePermsResult.Success && rolePermsResult.Data != null)
                 {
                     foreach (var rp in rolePermsResult.Data)
@@ -191,8 +229,8 @@ public class AuthService
             foreach (var permissionId in permissionIds)
             {
                 var permQuery = _mysql.GetQueryBuilder<Permission>(ConnectionId);
-                permQuery?.Where(p => p.Id == permissionId);
-                var permResult = await permQuery!.FirstOrDefaultAsync();
+                permQuery.Where(p => p.Id == permissionId);
+                var permResult = await permQuery.FirstOrDefaultAsync();
                 if (permResult.Success && permResult.Data != null)
                 {
                     permissions.Add(permResult.Data);
@@ -236,11 +274,11 @@ public class AuthService
         user.FailedLoginAttempts++;
         user.UpdatedAt = DateTime.UtcNow;
 
-        // Lock account if max attempts reached
-        if (user.FailedLoginAttempts >= MaxFailedAttempts)
+        // Lock account if max attempts reached (use configured value)
+        if (user.FailedLoginAttempts >= _options.MaxFailedLoginAttempts)
         {
-            user.LockedUntil = DateTime.UtcNow.Add(LockoutDuration);
-            _logger?.Warning($"User account locked due to failed login attempts: {user.Username} ({user.Id})");
+            user.LockedUntil = DateTime.UtcNow.Add(_options.AccountLockoutDuration);
+            _logger?.Warning($"User account locked due to {user.FailedLoginAttempts} failed login attempts: {user.Username} ({user.Id}). Locked until {user.LockedUntil:yyyy-MM-dd HH:mm:ss} UTC");
         }
 
         var repo = _mysql.GetRepository<User>(ConnectionId);
@@ -257,6 +295,53 @@ public class AuthService
 
         var repo = _mysql.GetRepository<User>(ConnectionId);
         await repo.UpdateAsync(user);
+    }
+
+    /// <summary>
+    /// Log a login attempt to the database for security auditing
+    /// </summary>
+    private async Task LogLoginAttemptAsync(Guid? userId, string usernameOrEmail, string? ipAddress, bool isSuccessful, string? failureReason)
+    {
+        // Only log if enabled in configuration
+        if (!_options.EnableLoginAttemptLogging)
+        {
+            return;
+        }
+
+        try
+        {
+            var httpContext = _httpContextAccessor?.HttpContext;
+            var userAgent = httpContext?.Request.Headers["User-Agent"].ToString();
+
+            var loginAttempt = new LoginAttempt
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                UsernameOrEmail = usernameOrEmail,
+                IpAddress = ipAddress ?? "unknown",
+                UserAgent = userAgent,
+                IsSuccessful = isSuccessful,
+                FailureReason = failureReason,
+                AttemptedAt = DateTime.UtcNow
+            };
+
+            var repo = _mysql.GetRepository<LoginAttempt>(ConnectionId);
+            var result = await repo.InsertAsync(loginAttempt);
+
+            if (result.Success)
+            {
+                Console.WriteLine($"[AuthService] Login attempt logged - User: {usernameOrEmail}, Success: {isSuccessful}, IP: {ipAddress}");
+            }
+            else
+            {
+                _logger?.Warning($"Failed to log login attempt: {result.ErrorMessage}");
+            }
+        }
+        catch (Exception ex)
+        {
+            // Don't fail the login if logging fails
+            _logger?.Error($"Error logging login attempt for {usernameOrEmail}", ex);
+        }
     }
 }
 

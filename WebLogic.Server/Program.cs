@@ -5,9 +5,11 @@ using CodeLogic.Discovery;
 using CL.Core.Utilities;
 using CL.MySQL2;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using System.IO.Compression;
 using WebLogic.Server.Core.Extensions;
+using WebLogic.Server.Services;
 using WebLogic.Shared.Abstractions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -104,6 +106,29 @@ builder.Services.AddWebLogicServer(options =>
     options.EnableAPI = true;
     options.AutoLoadExtensions = true;
     options.AutoSyncDatabaseTables = true;
+
+    // Authentication Security Settings
+    options.MaxFailedLoginAttempts = 5;
+    options.AccountLockoutDuration = TimeSpan.FromMinutes(15);
+    options.EnableLoginAttemptLogging = true;
+    options.LoginAttemptLogRetention = TimeSpan.FromDays(90);
+    options.EnableLoginAttemptLogCleanup = true;
+
+    // Database Logging Settings
+    options.EnableDatabaseLogging = true;
+    options.LogSecurity = true;
+    options.LogAuthentication = true;
+    options.LogRateLimit = true;
+    options.LogSystem = true;
+    options.LogUserAction = true;
+    options.LogExtension = true;
+    options.LogApi = false;              // Can be verbose
+    options.LogDatabase = false;         // Can be verbose
+    options.LogSession = false;          // Can be verbose
+    options.LogIpReputation = false;     // Only if using DNSBL
+    options.MinimumLogLevel = WebLogic.Server.Models.Database.LogLevel.Info;
+    options.LogRetentionPeriod = TimeSpan.FromDays(90);
+    options.EnableLogCleanup = true;
 });
 
 // ============================================================================
@@ -123,14 +148,14 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
 
 builder.Services.AddHttpContextAccessor();
 
-// Session configuration
-builder.Services.AddDistributedMemoryCache();
+// Session configuration - MySQL-backed for persistence
+builder.Services.AddSingleton<IDistributedCache, MySQL2DistributedCache>();
 builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromHours(1);
     options.Cookie.Name = "weblogic.session";
     options.Cookie.HttpOnly = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest; // Allow HTTP in dev, HTTPS in prod
     options.Cookie.SameSite = SameSiteMode.Lax;
     options.Cookie.IsEssential = true;
 });

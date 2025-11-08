@@ -115,13 +115,6 @@
                                 </span>
                             </button>
                         </form>
-
-                        <div class="text-center mt-4">
-                            <small class="text-muted">
-                                <i class="bi bi-info-circle me-1"></i>
-                                Default: admin / Admin123!
-                            </small>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -156,9 +149,15 @@
                     contentType: 'application/json',
                     data: JSON.stringify({ username, password }),
                     success: function(response) {
+                        console.log('[Login] AJAX success - Full response:', response);
+                        console.log('[Login] response.success =', response.success);
+                        console.log('[Login] response type:', typeof response);
+
                         if (response.success) {
+                            console.log('[Login] Redirecting to /admin...');
                             window.location.href = '/admin';
                         } else {
+                            console.log('[Login] Login failed:', response.error);
                             $errorMessage.text(response.error || 'Login failed').removeClass('d-none');
                             $loginText.removeClass('d-none');
                             $loginSpinner.addClass('d-none');

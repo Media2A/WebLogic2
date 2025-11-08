@@ -11,13 +11,13 @@ public class RolePermission
     /// <summary>
     /// Role ID
     /// </summary>
-    [Column(Name = "role_id", DataType = DataType.VarChar, Size = 36, Primary = true, NotNull = true, Index = true)]
+    [Column(Name = "role_id", DataType = DataType.Uuid, Primary = true, NotNull = true, Index = true)]
     public Guid RoleId { get; set; }
 
     /// <summary>
     /// Permission ID
     /// </summary>
-    [Column(Name = "permission_id", DataType = DataType.VarChar, Size = 36, Primary = true, NotNull = true, Index = true)]
+    [Column(Name = "permission_id", DataType = DataType.Uuid, Primary = true, NotNull = true, Index = true)]
     public Guid PermissionId { get; set; }
 
     /// <summary>

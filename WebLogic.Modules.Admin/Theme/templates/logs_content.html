@@ -1,0 +1,194 @@
+<div class="container-fluid mt-4">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3"><i class="bi bi-file-text me-2"></i>System Logs</h1>
+        <button class="btn btn-danger btn-sm" id="cleanupLogsBtn">
+            <i class="bi bi-trash me-1"></i>Cleanup Old Logs
+        </button>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4" id="statsCards">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">Total Logs</h6>
+                            <h3 class="mb-0" id="totalLogs">-</h3>
+                        </div>
+                        <div class="text-primary">
+                            <i class="bi bi-file-earmark-text fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">Last 24 Hours</h6>
+                            <h3 class="mb-0" id="recentLogs">-</h3>
+                        </div>
+                        <div class="text-info">
+                            <i class="bi bi-clock-history fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">Errors</h6>
+                            <h3 class="mb-0 text-danger" id="errorCount">-</h3>
+                        </div>
+                        <div class="text-danger">
+                            <i class="bi bi-exclamation-triangle fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1">Warnings</h6>
+                            <h3 class="mb-0 text-warning" id="warningCount">-</h3>
+                        </div>
+                        <div class="text-warning">
+                            <i class="bi bi-exclamation-circle fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Filters</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label for="categoryFilter" class="form-label">Category</label>
+                    <select class="form-select" id="categoryFilter">
+                        <option value="">All Categories</option>
+                        <option value="1">Security</option>
+                        <option value="2">Rate Limit</option>
+                        <option value="3">Authentication</option>
+                        <option value="4">API</option>
+                        <option value="5">System</option>
+                        <option value="6">Database</option>
+                        <option value="7">User Action</option>
+                        <option value="8">Extension</option>
+                        <option value="9">IP Reputation</option>
+                        <option value="10">Session</option>
+                        <option value="99">General</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="levelFilter" class="form-label">Min Level</label>
+                    <select class="form-select" id="levelFilter">
+                        <option value="">All Levels</option>
+                        <option value="1">Debug+</option>
+                        <option value="2">Info+</option>
+                        <option value="3">Warning+</option>
+                        <option value="4">Error+</option>
+                        <option value="5">Critical</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="sourceFilter" class="form-label">Source</label>
+                    <input type="text" class="form-control" id="sourceFilter" placeholder="e.g., AuthService">
+                </div>
+                <div class="col-md-4">
+                    <label for="searchFilter" class="form-label">Search Message</label>
+                    <input type="text" class="form-control" id="searchFilter" placeholder="Search in message...">
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-12">
+                    <button class="btn btn-primary" id="applyFiltersBtn">
+                        <i class="bi bi-search me-1"></i>Apply Filters
+                    </button>
+                    <button class="btn btn-secondary" id="clearFiltersBtn">
+                        <i class="bi bi-x-circle me-1"></i>Clear
+                    </button>
+                    <button class="btn btn-info" id="refreshBtn">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Log Entries</h5>
+            <span class="badge bg-secondary" id="logsCount">0 logs</span>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="logsTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 160px;">Timestamp</th>
+                            <th style="width: 100px;">Category</th>
+                            <th style="width: 80px;">Level</th>
+                            <th style="width: 120px;">Source</th>
+                            <th>Message</th>
+                            <th style="width: 120px;">User</th>
+                            <th style="width: 120px;">IP Address</th>
+                            <th style="width: 60px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsTableBody">
+                        <tr>
+                            <td colspan="8" class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-2 text-muted">Loading logs...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <nav aria-label="Log pagination" id="paginationContainer" style="display: none;">
+                <ul class="pagination justify-content-center mb-0" id="pagination"></ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<!-- Log Details Modal -->
+<div class="modal fade" id="logDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Log Entry Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="logDetailContent">
+                <!-- Content loaded dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{{scripts}}}

@@ -21,8 +21,45 @@ public static class ServiceCollectionExtensions
         var options = new WebLogicServerOptions();
         configure?.Invoke(options);
 
-        // Register options as singleton
+        // Register options using IOptions pattern
         services.AddSingleton(options);
+        services.Configure<WebLogicServerOptions>(opts =>
+        {
+            opts.ServerName = options.ServerName;
+            opts.EnableDebugMode = options.EnableDebugMode;
+            opts.EnableHttpsRedirect = options.EnableHttpsRedirect;
+            opts.EnableRateLimiting = options.EnableRateLimiting;
+            opts.GlobalRateLimit = options.GlobalRateLimit;
+            opts.RateLimitWindow = options.RateLimitWindow;
+            opts.RateLimitBanDuration = options.RateLimitBanDuration;
+            opts.EnableDnsblCheck = options.EnableDnsblCheck;
+            opts.EnableIpGeolocation = options.EnableIpGeolocation;
+            opts.MaxFailedLoginAttempts = options.MaxFailedLoginAttempts;
+            opts.AccountLockoutDuration = options.AccountLockoutDuration;
+            opts.EnableLoginAttemptLogging = options.EnableLoginAttemptLogging;
+            opts.LoginAttemptLogRetention = options.LoginAttemptLogRetention;
+            opts.EnableLoginAttemptLogCleanup = options.EnableLoginAttemptLogCleanup;
+            opts.EnableCMS = options.EnableCMS;
+            opts.EnableAPI = options.EnableAPI;
+            opts.EnableSessionTracking = options.EnableSessionTracking;
+            opts.SessionTimeout = options.SessionTimeout;
+            opts.EnableCronJobs = options.EnableCronJobs;
+            opts.AllowedOrigins = options.AllowedOrigins;
+            opts.AllowCredentials = options.AllowCredentials;
+            opts.ApiHostname = options.ApiHostname;
+            opts.EnableApiExplorer = options.EnableApiExplorer;
+            opts.EnableApiDiscovery = options.EnableApiDiscovery;
+            opts.DefaultStorageProvider = options.DefaultStorageProvider;
+            opts.ThemeStorageProvider = options.ThemeStorageProvider;
+            opts.FileStorageBasePath = options.FileStorageBasePath;
+            opts.Storage = options.Storage;
+            opts.CookieDomain = options.CookieDomain;
+            opts.SessionCookieName = options.SessionCookieName;
+            opts.AutoLoadExtensions = options.AutoLoadExtensions;
+            opts.AutoSyncDatabaseTables = options.AutoSyncDatabaseTables;
+            opts.DefaultDatabaseConnectionId = options.DefaultDatabaseConnectionId;
+            opts.TablePrefix = options.TablePrefix;
+        });
 
         // Register Extension Manager
         services.AddSingleton<IExtensionManager, Server.Extensions.ExtensionManager>();
@@ -79,6 +116,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<Server.Services.Auth.UserService>();
         services.AddSingleton<Server.Services.Auth.AuthTemplateHelpers>();
         services.AddSingleton<Server.Services.Auth.AuthDataSeeder>();
+
+        // Register Database Logger
+        services.AddSingleton<Server.Services.DatabaseLogger>();
 
         return services;
     }
@@ -216,9 +256,11 @@ public static class ServiceCollectionExtensions
             var coreModelTypes = new[]
             {
                 typeof(Models.Database.Session),
+                typeof(Models.Session.SessionData),  // ASP.NET Core distributed cache sessions
                 typeof(Models.Database.Route),
                 typeof(Models.Database.CronJob),
-                typeof(Models.Database.RateLimitEntry)
+                typeof(Models.Database.RateLimitEntry),
+                typeof(Models.Database.LogEntry)
             };
 
             var results = await mysql.SyncTablesAsync(coreModelTypes, connectionId, createBackup: true);
@@ -242,7 +284,7 @@ public static class ServiceCollectionExtensions
             Console.WriteLine($"✗ Core table sync failed: {ex.Message}");
         }
 
-        // Step 2a: Sync Auth tables (Users, Roles, Permissions)
+        // Step 2a: Sync Auth tables (Users, Roles, Permissions, LoginAttempts)
         Console.WriteLine("\n→ Syncing Auth tables...");
 
         try
@@ -253,7 +295,10 @@ public static class ServiceCollectionExtensions
                 typeof(Models.Auth.Role),
                 typeof(Models.Auth.Permission),
                 typeof(Models.Auth.UserRole),
-                typeof(Models.Auth.RolePermission)
+                typeof(Models.Auth.RolePermission),
+                typeof(Models.Auth.LoginAttempt),
+                typeof(Models.Session.SessionData),
+                typeof(Models.Database.LogEntry)
             };
 
             var authResults = await mysql.SyncTablesAsync(authModelTypes, connectionId, createBackup: true);

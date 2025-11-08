@@ -1,0 +1,397 @@
+<script>
+$(document).ready(function() {
+    let currentPage = 1;
+    const pageSize = 50;
+    let currentFilters = {};
+
+    // Category badges
+    const categoryBadges = {
+        'Security': 'danger',
+        'RateLimit': 'warning',
+        'Authentication': 'info',
+        'Api': 'primary',
+        'System': 'secondary',
+        'Database': 'dark',
+        'UserAction': 'success',
+        'Extension': 'info',
+        'IpReputation': 'warning',
+        'Session': 'secondary',
+        'General': 'light'
+    };
+
+    // Level badges
+    const levelBadges = {
+        'Debug': 'secondary',
+        'Info': 'info',
+        'Warning': 'warning',
+        'Error': 'danger',
+        'Critical': 'danger'
+    };
+
+    // Load statistics
+    function loadStats() {
+        $.ajax({
+            url: '/api/v1/admin/api/logs/stats',
+            method: 'GET',
+            success: function(response) {
+                if (response.success && response.data) {
+                    const stats = response.data;
+                    $('#totalLogs').text(stats.totalLogs.toLocaleString());
+                    $('#recentLogs').text(stats.recentLogs.toLocaleString());
+
+                    // Count errors and warnings
+                    const errorStats = stats.byLevel.find(l => l.levelValue >= 4);
+                    const warningStats = stats.byLevel.find(l => l.levelValue === 3);
+                    $('#errorCount').text(errorStats ? errorStats.count.toLocaleString() : '0');
+                    $('#warningCount').text(warningStats ? warningStats.count.toLocaleString() : '0');
+                }
+            },
+            error: function(xhr) {
+                console.error('Failed to load stats:', xhr);
+            }
+        });
+    }
+
+    // Load logs
+    function loadLogs(page = 1) {
+        currentPage = page;
+
+        const params = {
+            page: page,
+            pageSize: pageSize,
+            ...currentFilters
+        };
+
+        $('#logsTableBody').html(`
+            <tr>
+                <td colspan="8" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Loading logs...</p>
+                </td>
+            </tr>
+        `);
+
+        $.ajax({
+            url: '/api/v1/admin/api/logs',
+            method: 'GET',
+            data: params,
+            success: function(response) {
+                if (response.success && response.data) {
+                    renderLogs(response.data.logs);
+                    renderPagination(response.data.pagination);
+                    $('#logsCount').text(`${response.data.pagination.totalItems} logs`);
+                }
+            },
+            error: function(xhr) {
+                let errorMsg = 'Failed to load logs';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg = xhr.responseJSON.error;
+                }
+                $('#logsTableBody').html(`
+                    <tr>
+                        <td colspan="8" class="text-center text-danger py-5">
+                            <i class="bi bi-exclamation-triangle fs-1"></i>
+                            <p class="mt-2">${errorMsg}</p>
+                        </td>
+                    </tr>
+                `);
+            }
+        });
+    }
+
+    // Render logs table
+    function renderLogs(logs) {
+        if (!logs || logs.length === 0) {
+            $('#logsTableBody').html(`
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-5">
+                        <i class="bi bi-inbox fs-1"></i>
+                        <p class="mt-2">No logs found</p>
+                    </td>
+                </tr>
+            `);
+            return;
+        }
+
+        const html = logs.map(log => `
+            <tr>
+                <td><small>${formatDate(log.createdAt)}</small></td>
+                <td><span class="badge bg-${categoryBadges[log.category] || 'secondary'}">${log.category}</span></td>
+                <td><span class="badge bg-${levelBadges[log.level] || 'secondary'}">${log.level}</span></td>
+                <td><small>${log.source || '-'}</small></td>
+                <td>
+                    <div class="text-truncate" style="max-width: 300px;" title="${escapeHtml(log.message)}">
+                        ${escapeHtml(log.message)}
+                    </div>
+                </td>
+                <td><small>${log.username || '-'}</small></td>
+                <td><small>${log.ipAddress || '-'}</small></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary view-log-btn" data-log='${JSON.stringify(log)}'>
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+
+        $('#logsTableBody').html(html);
+    }
+
+    // Render pagination
+    function renderPagination(pagination) {
+        if (pagination.totalPages <= 1) {
+            $('#paginationContainer').hide();
+            return;
+        }
+
+        $('#paginationContainer').show();
+
+        let paginationHtml = '';
+
+        // Previous button
+        paginationHtml += `
+            <li class="page-item ${!pagination.hasPreviousPage ? 'disabled' : ''}">
+                <a class="page-link" href="#" data-page="${pagination.page - 1}">Previous</a>
+            </li>
+        `;
+
+        // Page numbers
+        const startPage = Math.max(1, pagination.page - 2);
+        const endPage = Math.min(pagination.totalPages, pagination.page + 2);
+
+        if (startPage > 1) {
+            paginationHtml += `<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>`;
+            if (startPage > 2) {
+                paginationHtml += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            paginationHtml += `
+                <li class="page-item ${i === pagination.page ? 'active' : ''}">
+                    <a class="page-link" href="#" data-page="${i}">${i}</a>
+                </li>
+            `;
+        }
+
+        if (endPage < pagination.totalPages) {
+            if (endPage < pagination.totalPages - 1) {
+                paginationHtml += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+            paginationHtml += `<li class="page-item"><a class="page-link" href="#" data-page="${pagination.totalPages}">${pagination.totalPages}</a></li>`;
+        }
+
+        // Next button
+        paginationHtml += `
+            <li class="page-item ${!pagination.hasNextPage ? 'disabled' : ''}">
+                <a class="page-link" href="#" data-page="${pagination.page + 1}">Next</a>
+            </li>
+        `;
+
+        $('#pagination').html(paginationHtml);
+    }
+
+    // View log details
+    $(document).on('click', '.view-log-btn', function(e) {
+        e.preventDefault();
+        const log = JSON.parse($(this).attr('data-log'));
+        showLogDetails(log);
+    });
+
+    function showLogDetails(log) {
+        let detailsHtml = '';
+        try {
+            const details = log.details ? JSON.parse(log.details) : null;
+            detailsHtml = details ? `<pre class="bg-light p-3 rounded">${JSON.stringify(details, null, 2)}</pre>` : '<p class="text-muted">No additional details</p>';
+        } catch (e) {
+            detailsHtml = `<pre class="bg-light p-3 rounded">${escapeHtml(log.details || '')}</pre>`;
+        }
+
+        const content = `
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <strong>Category:</strong>
+                    <span class="badge bg-${categoryBadges[log.category] || 'secondary'}">${log.category}</span>
+                </div>
+                <div class="col-md-6">
+                    <strong>Level:</strong>
+                    <span class="badge bg-${levelBadges[log.level] || 'secondary'}">${log.level}</span>
+                </div>
+                <div class="col-md-6">
+                    <strong>Timestamp:</strong><br>
+                    ${formatDate(log.createdAt)}
+                </div>
+                <div class="col-md-6">
+                    <strong>Source:</strong><br>
+                    ${log.source || '-'}
+                </div>
+                <div class="col-12">
+                    <strong>Message:</strong><br>
+                    <div class="alert alert-info">${escapeHtml(log.message)}</div>
+                </div>
+                ${log.username ? `
+                <div class="col-md-6">
+                    <strong>User:</strong><br>
+                    ${log.username}
+                </div>
+                ` : ''}
+                ${log.ipAddress ? `
+                <div class="col-md-6">
+                    <strong>IP Address:</strong><br>
+                    ${log.ipAddress}
+                </div>
+                ` : ''}
+                ${log.requestPath ? `
+                <div class="col-md-6">
+                    <strong>Request Path:</strong><br>
+                    ${log.requestPath}
+                </div>
+                ` : ''}
+                ${log.httpMethod ? `
+                <div class="col-md-6">
+                    <strong>HTTP Method:</strong><br>
+                    <span class="badge bg-primary">${log.httpMethod}</span>
+                </div>
+                ` : ''}
+                ${log.statusCode ? `
+                <div class="col-md-6">
+                    <strong>Status Code:</strong><br>
+                    <span class="badge bg-${log.statusCode < 400 ? 'success' : 'danger'}">${log.statusCode}</span>
+                </div>
+                ` : ''}
+                ${log.durationMs ? `
+                <div class="col-md-6">
+                    <strong>Duration:</strong><br>
+                    ${log.durationMs}ms
+                </div>
+                ` : ''}
+                ${log.userAgent ? `
+                <div class="col-12">
+                    <strong>User Agent:</strong><br>
+                    <small class="text-muted">${escapeHtml(log.userAgent)}</small>
+                </div>
+                ` : ''}
+                <div class="col-12">
+                    <strong>Details:</strong><br>
+                    ${detailsHtml}
+                </div>
+                ${log.exception ? `
+                <div class="col-12">
+                    <strong>Exception:</strong><br>
+                    <pre class="bg-danger text-white p-3 rounded" style="max-height: 300px; overflow-y: auto;">${escapeHtml(log.exception)}</pre>
+                </div>
+                ` : ''}
+            </div>
+        `;
+
+        $('#logDetailContent').html(content);
+        new bootstrap.Modal(document.getElementById('logDetailModal')).show();
+    }
+
+    // Pagination click handler
+    $(document).on('click', '#pagination .page-link', function(e) {
+        e.preventDefault();
+        const page = parseInt($(this).data('page'));
+        if (page && !$(this).parent().hasClass('disabled')) {
+            loadLogs(page);
+        }
+    });
+
+    // Apply filters
+    $('#applyFiltersBtn').click(function() {
+        currentFilters = {};
+
+        const category = $('#categoryFilter').val();
+        const level = $('#levelFilter').val();
+        const source = $('#sourceFilter').val().trim();
+        const search = $('#searchFilter').val().trim();
+
+        if (category) currentFilters.category = category;
+        if (level) currentFilters.level = level;
+        if (source) currentFilters.source = source;
+        if (search) currentFilters.search = search;
+
+        loadLogs(1);
+    });
+
+    // Clear filters
+    $('#clearFiltersBtn').click(function() {
+        $('#categoryFilter').val('');
+        $('#levelFilter').val('');
+        $('#sourceFilter').val('');
+        $('#searchFilter').val('');
+        currentFilters = {};
+        loadLogs(1);
+    });
+
+    // Refresh button
+    $('#refreshBtn').click(function() {
+        loadStats();
+        loadLogs(currentPage);
+    });
+
+    // Cleanup logs
+    $('#cleanupLogsBtn').click(function() {
+        if (!confirm('Are you sure you want to clean up old logs? This action cannot be undone.')) {
+            return;
+        }
+
+        const $btn = $(this);
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Cleaning up...');
+
+        $.ajax({
+            url: '/api/v1/admin/api/logs/cleanup',
+            method: 'DELETE',
+            success: function(response) {
+                if (response.success) {
+                    alert(`Successfully cleaned up ${response.data.deletedCount} old log entries`);
+                    loadStats();
+                    loadLogs(currentPage);
+                } else {
+                    alert('Failed to cleanup logs: ' + (response.error || 'Unknown error'));
+                }
+            },
+            error: function(xhr) {
+                alert('Failed to cleanup logs: ' + (xhr.responseJSON?.error || 'Unknown error'));
+            },
+            complete: function() {
+                $btn.prop('disabled', false).html('<i class="bi bi-trash me-1"></i>Cleanup Old Logs');
+            }
+        });
+    });
+
+    // Helper functions
+    function formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    // Initial load
+    loadStats();
+    loadLogs(1);
+
+    // Auto-refresh every 30 seconds
+    setInterval(function() {
+        loadLogs(currentPage);
+    }, 30000);
+});
+</script>

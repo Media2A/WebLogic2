@@ -11,13 +11,13 @@ public class UserRole
     /// <summary>
     /// User ID
     /// </summary>
-    [Column(Name = "user_id", DataType = DataType.VarChar, Size = 36, Primary = true, NotNull = true, Index = true)]
+    [Column(Name = "user_id", DataType = DataType.Uuid, Primary = true, NotNull = true, Index = true)]
     public Guid UserId { get; set; }
 
     /// <summary>
     /// Role ID
     /// </summary>
-    [Column(Name = "role_id", DataType = DataType.VarChar, Size = 36, Primary = true, NotNull = true, Index = true)]
+    [Column(Name = "role_id", DataType = DataType.Uuid, Primary = true, NotNull = true, Index = true)]
     public Guid RoleId { get; set; }
 
     /// <summary>
@@ -29,6 +29,6 @@ public class UserRole
     /// <summary>
     /// Who assigned this role (null if system-assigned)
     /// </summary>
-    [Column(Name = "assigned_by", DataType = DataType.VarChar, Size = 36)]
+    [Column(Name = "assigned_by", DataType = DataType.Uuid)]
     public Guid? AssignedBy { get; set; }
 }

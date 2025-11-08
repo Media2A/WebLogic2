@@ -59,6 +59,109 @@ public class WebLogicServerOptions
     public bool EnableIpGeolocation { get; set; } = false;
 
     // ============================================================================
+    // Authentication Security Settings
+    // ============================================================================
+
+    /// <summary>
+    /// Maximum failed login attempts before account lockout
+    /// </summary>
+    public int MaxFailedLoginAttempts { get; set; } = 5;
+
+    /// <summary>
+    /// Account lockout duration after max failed attempts
+    /// </summary>
+    public TimeSpan AccountLockoutDuration { get; set; } = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// Enable login attempt logging to database (for security auditing)
+    /// </summary>
+    public bool EnableLoginAttemptLogging { get; set; } = true;
+
+    /// <summary>
+    /// Automatically clean up old login attempt logs after specified duration
+    /// </summary>
+    public TimeSpan LoginAttemptLogRetention { get; set; } = TimeSpan.FromDays(90);
+
+    /// <summary>
+    /// Enable automatic cleanup of expired login attempt logs
+    /// </summary>
+    public bool EnableLoginAttemptLogCleanup { get; set; } = true;
+
+    // ============================================================================
+    // Database Logging Settings
+    // ============================================================================
+
+    /// <summary>
+    /// Enable centralized database logging
+    /// </summary>
+    public bool EnableDatabaseLogging { get; set; } = true;
+
+    /// <summary>
+    /// Enable Security category logging (login attempts, access violations)
+    /// </summary>
+    public bool LogSecurity { get; set; } = true;
+
+    /// <summary>
+    /// Enable Rate Limit category logging
+    /// </summary>
+    public bool LogRateLimit { get; set; } = true;
+
+    /// <summary>
+    /// Enable Authentication category logging
+    /// </summary>
+    public bool LogAuthentication { get; set; } = true;
+
+    /// <summary>
+    /// Enable API category logging (requests/responses)
+    /// </summary>
+    public bool LogApi { get; set; } = false;
+
+    /// <summary>
+    /// Enable System category logging (startup, shutdown, errors)
+    /// </summary>
+    public bool LogSystem { get; set; } = true;
+
+    /// <summary>
+    /// Enable Database category logging (queries, migrations)
+    /// </summary>
+    public bool LogDatabase { get; set; } = false;
+
+    /// <summary>
+    /// Enable User Action category logging (CRUD operations)
+    /// </summary>
+    public bool LogUserAction { get; set; } = true;
+
+    /// <summary>
+    /// Enable Extension category logging
+    /// </summary>
+    public bool LogExtension { get; set; } = true;
+
+    /// <summary>
+    /// Enable IP Reputation category logging (DNSBL checks)
+    /// </summary>
+    public bool LogIpReputation { get; set; } = false;
+
+    /// <summary>
+    /// Enable Session category logging
+    /// </summary>
+    public bool LogSession { get; set; } = false;
+
+    /// <summary>
+    /// Minimum log level to persist to database
+    /// </summary>
+    public Models.Database.LogLevel MinimumLogLevel { get; set; } = Models.Database.LogLevel.Info;
+
+    /// <summary>
+    /// Log retention period (logs older than this will be cleaned up)
+    /// </summary>
+    public TimeSpan LogRetentionPeriod { get; set; } = TimeSpan.FromDays(90);
+
+    /// <summary>
+    /// Enable automatic cleanup of old logs
+    /// </summary>
+    public bool EnableLogCleanup { get; set; } = true;
+
+    // ============================================================================
     // Feature Toggles
     // ============================================================================
 

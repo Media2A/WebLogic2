@@ -97,7 +97,10 @@ public class AdminExtension : IWebLogicExtension, ILibrary, IApplicationLifecycl
         // Roles page
         routes.MapGet("/admin/roles", async context => await HandleRolesPageAsync(context));
 
-        Console.WriteLine("    [Admin] ✓ Registered 5 page routes");
+        // Logs page
+        routes.MapGet("/admin/logs", async context => await HandleLogsPageAsync(context));
+
+        Console.WriteLine("    [Admin] ✓ Registered 6 page routes");
     }
 
     public void RegisterAPIs(IApiManager apiManager)
@@ -294,7 +297,39 @@ public class AdminExtension : IWebLogicExtension, ILibrary, IApplicationLifecycl
             .Handler(async req => await HandleListPermissionsAsync(new ApiContext(req)))
             .Build());
 
-        Console.WriteLine("    [Admin] ✓ Registered 18 API endpoints");
+        // ============= LOG MANAGEMENT APIs =============
+
+        // List logs with filtering and pagination
+        apiManager.RegisterEndpoint(apiManager.CreateEndpoint(extensionId)
+            .Version("1")
+            .Path("/admin/api/logs")
+            .Get()
+            .Description("List system logs with filtering and pagination")
+            .Tags("Admin", "Logs")
+            .Handler(async req => await HandleListLogsAsync(new ApiContext(req)))
+            .Build());
+
+        // Get log statistics
+        apiManager.RegisterEndpoint(apiManager.CreateEndpoint(extensionId)
+            .Version("1")
+            .Path("/admin/api/logs/stats")
+            .Get()
+            .Description("Get log statistics by category and level")
+            .Tags("Admin", "Logs")
+            .Handler(async req => await HandleLogStatsAsync(new ApiContext(req)))
+            .Build());
+
+        // Delete old logs (manual cleanup)
+        apiManager.RegisterEndpoint(apiManager.CreateEndpoint(extensionId)
+            .Version("1")
+            .Path("/admin/api/logs/cleanup")
+            .Delete()
+            .Description("Manually clean up old logs")
+            .Tags("Admin", "Logs")
+            .Handler(async req => await HandleLogCleanupAsync(new ApiContext(req)))
+            .Build());
+
+        Console.WriteLine("    [Admin] ✓ Registered 21 API endpoints");
     }
 
     public IEnumerable<Type> GetDatabaseModels()
@@ -744,6 +779,80 @@ public class AdminExtension : IWebLogicExtension, ILibrary, IApplicationLifecycl
         }
     }
 
+    private async Task<RouteResponse> HandleLogsPageAsync(RequestContext context)
+    {
+        // Get template engine and theme manager from service provider
+        var templateEngine = context.ServiceProvider.GetService<ITemplateEngine>();
+        var themeManager = context.ServiceProvider.GetService<IThemeManager>();
+
+        if (templateEngine == null)
+        {
+            return RouteResponse.Text("Template engine not available");
+        }
+        if (themeManager == null)
+        {
+            return RouteResponse.Text("Theme manager not available");
+        }
+
+        // Check authentication
+        var currentUser = context.HttpContext.GetCurrentUser();
+        if (currentUser == null)
+        {
+            return RouteResponse.Redirect("/admin/login");
+        }
+
+        // Get auth service
+        var authService = context.ServiceProvider.GetService<AuthService>();
+        if (authService == null)
+        {
+            return RouteResponse.Text("Auth service not available");
+        }
+
+        // Check permission
+        var hasAccess = await authService.HasPermissionAsync(currentUser.Id, "admin.access");
+        if (!hasAccess)
+        {
+            return RouteResponse.Forbidden("Access denied. You need 'admin.access' permission.");
+        }
+
+        // Temporarily switch to admin theme
+        var originalTheme = themeManager.GetActiveTheme().Manifest.Id;
+        if (themeManager.ThemeExists("admin"))
+        {
+            themeManager.SetActiveTheme("admin");
+        }
+
+        try
+        {
+            // Load logs scripts from theme manager
+            var scriptsPath = themeManager.GetPartialPath("logs_scripts");
+            var scripts = scriptsPath != null && File.Exists(scriptsPath)
+                ? await File.ReadAllTextAsync(scriptsPath)
+                : "";
+
+            // Render with layout
+            var html = await RenderWithLayoutAsync(templateEngine, themeManager, "logs_content.html", new
+            {
+                title = "System Logs",
+                pageTitle = "System Logs",
+                pageIcon = "file-text",
+                isLogs = true,
+                user = currentUser,
+                scripts = scripts
+            });
+
+            return RouteResponse.Html(html);
+        }
+        finally
+        {
+            // Restore original theme
+            if (originalTheme != "admin" && themeManager.ThemeExists(originalTheme))
+            {
+                themeManager.SetActiveTheme(originalTheme);
+            }
+        }
+    }
+
     private async Task<ApiResponse> HandleLoginApiAsync(ApiContext context)
     {
         try
@@ -777,8 +886,19 @@ public class AdminExtension : IWebLogicExtension, ILibrary, IApplicationLifecycl
 
             if (result.IsSuccess && result.User != null)
             {
+                Console.WriteLine($"[Admin] Login successful - Creating session for user: {result.User.Username} (ID: {result.User.Id})");
+                Console.WriteLine($"[Admin] Session.IsAvailable before SignIn: {context.Request.Context.HttpContext.Session.IsAvailable}");
+                Console.WriteLine($"[Admin] Session.Id before SignIn: {context.Request.Context.HttpContext.Session.Id}");
+
                 // Create session
                 await context.Request.Context.HttpContext.SignInAsync(result.User);
+
+                Console.WriteLine($"[Admin] Session.Id after SignIn: {context.Request.Context.HttpContext.Session.Id}");
+                Console.WriteLine($"[Admin] Session UserId after SignIn: {context.Request.Context.HttpContext.Session.GetString("UserId")}");
+
+                // Check if Set-Cookie header will be added
+                var hasSetCookie = context.Request.Context.HttpContext.Response.Headers.ContainsKey("Set-Cookie");
+                Console.WriteLine($"[Admin] Has Set-Cookie header: {hasSetCookie}");
 
                 Console.WriteLine($"[Admin] Login successful - User: {result.User.Username}");
 
@@ -1781,6 +1901,245 @@ public class AdminExtension : IWebLogicExtension, ILibrary, IApplicationLifecycl
         }
     }
 
+    // ============= LOG MANAGEMENT API HANDLERS =============
+
+    private async Task<ApiResponse> HandleListLogsAsync(ApiContext context)
+    {
+        try
+        {
+            var currentUser = context.Request.Context.HttpContext.GetCurrentUser();
+            if (currentUser == null)
+            {
+                return ApiResponse.Unauthorized("Authentication required");
+            }
+
+            if (!await _authService!.HasPermissionAsync(currentUser.Id, "admin.access"))
+            {
+                return ApiResponse.Forbidden("You don't have permission to view logs");
+            }
+
+            var query = context.Request.Context.HttpContext.Request.Query;
+            var page = int.TryParse(query["page"], out var p) ? p : 1;
+            var pageSize = int.TryParse(query["pageSize"], out var ps) ? ps : 50;
+            var category = query["category"].ToString();
+            var level = query["level"].ToString();
+            var search = query["search"].ToString();
+            var userId = query["userId"].ToString();
+            var source = query["source"].ToString();
+
+            var qb = _mysql!.GetQueryBuilder<WebLogic.Server.Models.Database.LogEntry>("Default");
+
+            // Apply filters
+            if (!string.IsNullOrWhiteSpace(category) && int.TryParse(category, out var cat))
+            {
+                qb.Where(l => (int)l.Category == cat);
+            }
+
+            if (!string.IsNullOrWhiteSpace(level) && int.TryParse(level, out var lvl))
+            {
+                qb.Where(l => (int)l.Level >= lvl);
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                qb.Where(l => l.Message.Contains(search) ||
+                             (l.Details != null && l.Details.Contains(search)));
+            }
+
+            if (!string.IsNullOrWhiteSpace(userId) && Guid.TryParse(userId, out var uid))
+            {
+                qb.Where(l => l.UserId == uid);
+            }
+
+            if (!string.IsNullOrWhiteSpace(source))
+            {
+                qb.Where(l => l.Source == source);
+            }
+
+            qb.OrderByDescending(l => l.CreatedAt);
+
+            // Use MySQL2 paging!
+            var result = await qb.ExecutePagedAsync(page, pageSize);
+
+            if (!result.Success)
+            {
+                return ApiResponse.ServerError(result.ErrorMessage ?? "Failed to fetch logs");
+            }
+
+            var logs = result.Data!.Items.Select(l => new
+            {
+                l.Id,
+                category = l.Category.ToString(),
+                categoryValue = (int)l.Category,
+                level = l.Level.ToString(),
+                levelValue = (int)l.Level,
+                l.Message,
+                l.Details,
+                l.UserId,
+                l.Username,
+                l.IpAddress,
+                l.UserAgent,
+                l.RequestPath,
+                l.HttpMethod,
+                l.StatusCode,
+                l.DurationMs,
+                l.Exception,
+                l.Source,
+                l.CreatedAt
+            });
+
+            return ApiResponse.Ok(new
+            {
+                logs,
+                pagination = new
+                {
+                    page = result.Data.PageNumber,
+                    pageSize = result.Data.PageSize,
+                    totalItems = result.Data.TotalItems,
+                    totalPages = result.Data.TotalPages,
+                    hasNextPage = result.Data.PageNumber < result.Data.TotalPages,
+                    hasPreviousPage = result.Data.PageNumber > 1
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            return ApiResponse.ServerError($"Error fetching logs: {ex.Message}");
+        }
+    }
+
+    private async Task<ApiResponse> HandleLogStatsAsync(ApiContext context)
+    {
+        try
+        {
+            var currentUser = context.Request.Context.HttpContext.GetCurrentUser();
+            if (currentUser == null)
+            {
+                return ApiResponse.Unauthorized("Authentication required");
+            }
+
+            if (!await _authService!.HasPermissionAsync(currentUser.Id, "admin.access"))
+            {
+                return ApiResponse.Forbidden("You don't have permission to view log statistics");
+            }
+
+            var qb = _mysql!.GetQueryBuilder<WebLogic.Server.Models.Database.LogEntry>("Default");
+            var result = await qb.ExecuteAsync();
+
+            if (!result.Success || result.Data == null)
+            {
+                return ApiResponse.ServerError("Failed to fetch log statistics");
+            }
+
+            var logs = result.Data.ToList();
+
+            // Calculate stats
+            var totalLogs = logs.Count;
+            var last24Hours = DateTime.UtcNow.AddHours(-24);
+            var recentLogs = logs.Count(l => l.CreatedAt >= last24Hours);
+
+            var byCategory = logs.GroupBy(l => l.Category)
+                .Select(g => new
+                {
+                    category = g.Key.ToString(),
+                    categoryValue = (int)g.Key,
+                    count = g.Count(),
+                    errors = g.Count(l => l.Level >= WebLogic.Server.Models.Database.LogLevel.Error),
+                    warnings = g.Count(l => l.Level == WebLogic.Server.Models.Database.LogLevel.Warning)
+                })
+                .OrderByDescending(x => x.count)
+                .ToList();
+
+            var byLevel = logs.GroupBy(l => l.Level)
+                .Select(g => new
+                {
+                    level = g.Key.ToString(),
+                    levelValue = (int)g.Key,
+                    count = g.Count()
+                })
+                .OrderBy(x => x.levelValue)
+                .ToList();
+
+            var topSources = logs.Where(l => !string.IsNullOrEmpty(l.Source))
+                .GroupBy(l => l.Source)
+                .Select(g => new
+                {
+                    source = g.Key,
+                    count = g.Count()
+                })
+                .OrderByDescending(x => x.count)
+                .Take(10)
+                .ToList();
+
+            var recentErrors = logs
+                .Where(l => l.Level >= WebLogic.Server.Models.Database.LogLevel.Error)
+                .OrderByDescending(l => l.CreatedAt)
+                .Take(10)
+                .Select(l => new
+                {
+                    l.Id,
+                    category = l.Category.ToString(),
+                    level = l.Level.ToString(),
+                    l.Message,
+                    l.Source,
+                    l.CreatedAt
+                })
+                .ToList();
+
+            return ApiResponse.Ok(new
+            {
+                totalLogs,
+                recentLogs,
+                byCategory,
+                byLevel,
+                topSources,
+                recentErrors
+            });
+        }
+        catch (Exception ex)
+        {
+            return ApiResponse.ServerError($"Error calculating log statistics: {ex.Message}");
+        }
+    }
+
+    private async Task<ApiResponse> HandleLogCleanupAsync(ApiContext context)
+    {
+        try
+        {
+            var currentUser = context.Request.Context.HttpContext.GetCurrentUser();
+            if (currentUser == null)
+            {
+                return ApiResponse.Unauthorized("Authentication required");
+            }
+
+            if (!await _authService!.HasPermissionAsync(currentUser.Id, "admin.access"))
+            {
+                return ApiResponse.Forbidden("You don't have permission to clean up logs");
+            }
+
+            // Get DatabaseLogger from service provider
+            var dbLogger = context.Request.Context.ServiceProvider.GetService(typeof(WebLogic.Server.Services.DatabaseLogger))
+                as WebLogic.Server.Services.DatabaseLogger;
+
+            if (dbLogger == null)
+            {
+                return ApiResponse.ServerError("DatabaseLogger service not available");
+            }
+
+            var deletedCount = await dbLogger.CleanupOldLogsAsync();
+
+            return ApiResponse.Ok(new
+            {
+                message = $"Successfully cleaned up {deletedCount} old log entries",
+                deletedCount
+            });
+        }
+        catch (Exception ex)
+        {
+            return ApiResponse.ServerError($"Error cleaning up logs: {ex.Message}");
+        }
+    }
+
     // ============= HELPERS =============
 
     /// <summary>
@@ -1894,10 +2253,10 @@ public class AdminExtension : IWebLogicExtension, ILibrary, IApplicationLifecycl
 
     private class LoginRequest
     {
-        [Newtonsoft.Json.JsonProperty("username")]
+        [System.Text.Json.Serialization.JsonPropertyName("username")]
         public string Username { get; set; } = string.Empty;
 
-        [Newtonsoft.Json.JsonProperty("password")]
+        [System.Text.Json.Serialization.JsonPropertyName("password")]
         public string Password { get; set; } = string.Empty;
     }
 

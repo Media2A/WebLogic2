@@ -23,13 +23,24 @@ public class AuthenticationMiddleware
         // Try to get user ID from session or cookie
         var userIdString = context.Session.GetString("UserId");
 
+        Console.WriteLine($"[AuthenticationMiddleware] Path: {context.Request.Path}");
+        Console.WriteLine($"[AuthenticationMiddleware] Session UserId: '{userIdString ?? "(null)"}'");
+        Console.WriteLine($"[AuthenticationMiddleware] Session IsAvailable: {context.Session.IsAvailable}");
+        Console.WriteLine($"[AuthenticationMiddleware] Session Id: {context.Session.Id}");
+
         if (!string.IsNullOrEmpty(userIdString) && Guid.TryParse(userIdString, out var userId))
         {
+            Console.WriteLine($"[AuthenticationMiddleware] Found valid UserId in session: {userId}");
+
             // Get user from database
             var user = await _authService.GetUserByIdAsync(userId);
 
+            Console.WriteLine($"[AuthenticationMiddleware] User lookup result: {(user != null ? $"Found {user.Username}" : "Not found")}");
+
             if (user != null && user.IsActive && !user.IsLocked)
             {
+                Console.WriteLine($"[AuthenticationMiddleware] User authenticated: {user.Username}");
+
                 // Store current user in HttpContext.Items for access throughout the request
                 context.Items["CurrentUser"] = user;
                 context.Items["CurrentUserId"] = user.Id;
@@ -37,6 +48,8 @@ public class AuthenticationMiddleware
             }
             else
             {
+                Console.WriteLine($"[AuthenticationMiddleware] User invalid or inactive");
+
                 // Invalid user - clear session
                 context.Session.Remove("UserId");
                 context.Items["IsAuthenticated"] = false;
@@ -44,6 +57,7 @@ public class AuthenticationMiddleware
         }
         else
         {
+            Console.WriteLine($"[AuthenticationMiddleware] No valid UserId in session");
             context.Items["IsAuthenticated"] = false;
         }
 
@@ -85,13 +99,27 @@ public static class AuthenticationExtensions
     /// </summary>
     public static async Task SignInAsync(this HttpContext context, User user)
     {
+        Console.WriteLine($"[SignInAsync] Starting sign-in for user: {user.Username} (ID: {user.Id})");
+        Console.WriteLine($"[SignInAsync] Session ID before: {context.Session.Id}");
+        Console.WriteLine($"[SignInAsync] Session IsAvailable: {context.Session.IsAvailable}");
+
         context.Session.SetString("UserId", user.Id.ToString());
+        Console.WriteLine($"[SignInAsync] Set session UserId: {user.Id}");
+
         context.Items["CurrentUser"] = user;
         context.Items["CurrentUserId"] = user.Id;
         context.Items["IsAuthenticated"] = true;
+        Console.WriteLine($"[SignInAsync] Set HttpContext items");
 
         // Ensure session is committed
+        Console.WriteLine($"[SignInAsync] Committing session...");
         await context.Session.CommitAsync();
+        Console.WriteLine($"[SignInAsync] Session committed successfully");
+        Console.WriteLine($"[SignInAsync] Session ID after: {context.Session.Id}");
+
+        // Verify it was set
+        var verifyUserId = context.Session.GetString("UserId");
+        Console.WriteLine($"[SignInAsync] Verification - UserId in session: {verifyUserId}");
     }
 
     /// <summary>

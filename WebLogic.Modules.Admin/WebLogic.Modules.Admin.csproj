@@ -10,8 +10,6 @@
   <ItemGroup>
     <ProjectReference Include="..\WebLogic.Shared\WebLogic.Shared.csproj" />
     <ProjectReference Include="..\WebLogic.Server\WebLogic.Server.csproj" />
-    <ProjectReference Include="..\..\CodeLogic2\src\CodeLogic.csproj" />
-    <ProjectReference Include="..\..\CodeLogic2-Libs\CL.Core\CL.Core.csproj" />
     <ProjectReference Include="..\..\CodeLogic2-Libs\CL.MySQL2\CL.MySQL2.csproj" />
   </ItemGroup>
 

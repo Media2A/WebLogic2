@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using WebLogic.Shared.Abstractions;
 using WebLogic.Shared.Models;
 using WebLogic.Shared.Models.API;
+using WebLogic.Server.Core.Middleware;
 using ApiResponse = WebLogic.Shared.Models.API.ApiResponse;
 
 namespace WebLogic.Server.Middleware;
@@ -168,15 +169,31 @@ public class ApiRouterMiddleware
             Console.WriteLine($"[ApiRouter] No body to read - ContentLength: {context.Request.ContentLength}, CanRead: {context.Request.Body.CanRead}");
         }
 
-        // Get authentication info (placeholder - will be implemented with auth system)
-        int? userId = null;
+        // Get authentication info from HttpContext (set by AuthenticationMiddleware)
+        Guid? userId = null;
         string[] userPermissions = Array.Empty<string>();
 
-        // TODO: Extract from session, JWT, or other auth mechanism
-        // For now, check for simple header-based auth
-        if (context.Request.Headers.ContainsKey("X-User-Id"))
+        // First, check if user is authenticated via session (set by AuthenticationMiddleware)
+        var currentUserId = context.GetCurrentUserId();
+        if (currentUserId.HasValue)
         {
-            if (int.TryParse(context.Request.Headers["X-User-Id"].ToString(), out var parsedUserId))
+            // User is authenticated via session
+            userId = currentUserId.Value;
+
+            // Get user permissions from auth service if available
+            var authService = context.RequestServices.GetService(typeof(WebLogic.Server.Services.Auth.AuthService))
+                as WebLogic.Server.Services.Auth.AuthService;
+
+            if (authService != null)
+            {
+                var permissions = await authService.GetUserPermissionsAsync(currentUserId.Value);
+                userPermissions = permissions.Select(p => p.Name).ToArray();
+            }
+        }
+        // Fallback: check for header-based auth (for API keys, etc.)
+        else if (context.Request.Headers.ContainsKey("X-User-Id"))
+        {
+            if (Guid.TryParse(context.Request.Headers["X-User-Id"].ToString(), out var parsedUserId))
             {
                 userId = parsedUserId;
             }

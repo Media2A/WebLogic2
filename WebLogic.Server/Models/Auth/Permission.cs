@@ -11,7 +11,7 @@ public class Permission
     /// <summary>
     /// Unique permission identifier (GUID)
     /// </summary>
-    [Column(Name = "id", DataType = DataType.VarChar, Size = 36, Primary = true, NotNull = true)]
+    [Column(Name = "id", DataType = DataType.Uuid, Primary = true, NotNull = true)]
     public Guid Id { get; set; } = Guid.NewGuid();
 
     /// <summary>
